@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+*.local
+.vercel
+.wrangler
+.DS_Store
+.env*
+npm-debug.log*
+yarn-error.log*

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Run from the directory this script lives in, so it works no matter where it's called from.
+cd "$(dirname "$0")"
+
+pnpm_absent=false
+
+# 1. nvm — it's a shell function, not a binary, so source it before checking for it.
+if [ -z "${NVM_DIR:-}" ] && [ -d "$HOME/.nvm" ]; then
+  export NVM_DIR="$HOME/.nvm"
+fi
+if [ -n "${NVM_DIR:-}" ] && [ -s "$NVM_DIR/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$NVM_DIR/nvm.sh"
+fi
+if command -v nvm >/dev/null 2>&1; then
+  echo "→ nvm found — running 'nvm use'"
+  nvm use
+else
+  echo "→ nvm not found — skipping 'nvm use'"
+fi
+
+# 2. If pnpm and node_modules both exist, sync dependencies.
+if command -v pnpm >/dev/null 2>&1; then
+  if [ -d node_modules ]; then
+    echo "→ node_modules present — running 'pnpm install'"
+    pnpm install
+  fi
+else
+  pnpm_absent=true
+fi
+
+# 3. If pnpm exists, start the dev server.
+if command -v pnpm >/dev/null 2>&1; then
+  echo "→ running 'pnpm dev'"
+  pnpm dev
+else
+  pnpm_absent=true
+fi
+
+# 4. pnpm missing — tell the user how to fix it.
+if [ "$pnpm_absent" = true ]; then
+  echo
+  echo "╔════════════════════════════════════════════════════════════╗"
+  echo "║  pnpm is not installed                                     ║"
+  echo "╚════════════════════════════════════════════════════════════╝"
+  echo
+  echo "This project uses pnpm. Install it, then re-run ./start"
+  echo
+  echo "  Install pnpm:   https://pnpm.io/installation"
+  echo
+  echo "pnpm needs Node.js. If you don't have Node, install it via nvm:"
+  echo
+  echo "  Install nvm:    https://github.com/nvm-sh/nvm#installing-and-updating"
+  echo "  Or Node direct: https://nodejs.org/en/download"
+  echo
+  exit 1
+fi
