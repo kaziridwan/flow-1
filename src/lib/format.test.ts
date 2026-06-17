@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanDuration, mmss, youtubeId } from "./format";
+import { hms, humanDuration, mmss, parseHms, youtubeId } from "./format";
 
 describe("mmss", () => {
   it("zero-pads minutes and seconds", () => {
@@ -9,6 +9,34 @@ describe("mmss", () => {
   });
   it("clamps negatives to zero", () => {
     expect(mmss(-10)).toBe("00:00");
+  });
+});
+
+describe("hms", () => {
+  it("zero-pads hours, minutes and seconds", () => {
+    expect(hms(0)).toBe("00:00:00");
+    expect(hms(65)).toBe("00:01:05");
+    expect(hms(9000)).toBe("02:30:00");
+  });
+  it("clamps negatives to zero", () => {
+    expect(hms(-5)).toBe("00:00:00");
+  });
+});
+
+describe("parseHms", () => {
+  it("parses HH:MM:SS / MM:SS / SS", () => {
+    expect(parseHms("02:30:00")).toBe(9000);
+    expect(parseHms("01:05")).toBe(65);
+    expect(parseHms("90")).toBe(90);
+  });
+  it("round-trips with hms", () => {
+    expect(parseHms(hms(4271))).toBe(4271);
+  });
+  it("returns null for malformed input", () => {
+    expect(parseHms("")).toBeNull();
+    expect(parseHms("aa:bb")).toBeNull();
+    expect(parseHms("1:2:3:4")).toBeNull();
+    expect(parseHms("1:-2")).toBeNull();
   });
 });
 

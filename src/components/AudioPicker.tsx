@@ -201,6 +201,8 @@ export function AudioPicker({
         <BinauralEngine
           design={cfg.binaural}
           onChange={(binaural) => set({ binaural })}
+          engine={engine}
+          masterVolume={cfg.volume}
         />
       </Sheet>
     </div>

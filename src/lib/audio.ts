@@ -1,4 +1,4 @@
-import { NOISE_COLORS, cornerWeights } from "./audioDesign";
+import { NOISE_COLORS, cornerWeights, interpolateBinaural } from "./audioDesign";
 import type { BinauralDesign, NoiseColor, NoiseDesign } from "../types";
 
 type NoiseKind = NoiseColor;
@@ -202,11 +202,13 @@ export class AudioEngine {
    * track: left = base, right = base+beat, both interpolated between keyframes,
    * with the track looping over `durationSec`. Editing the track while it plays
    * reschedules the automation without restarting the oscillators (no click).
+   * `offsetSec` seeks playback into the track (used by the editor's preview
+   * cursor); the track then loops back to its start and repeats every length.
    */
-  playBinauralTrack(design: BinauralDesign) {
+  playBinauralTrack(design: BinauralDesign, offsetSec = 0) {
     if (this.binaural) {
-      this.scheduleBinaural(design);
-      this.resetBinauralLoop(design);
+      this.scheduleBinaural(design, offsetSec);
+      this.resetBinauralLoop(design, offsetSec);
       return;
     }
     const ctx = this.ensure();
@@ -223,8 +225,8 @@ export class AudioEngine {
     merger.connect(gain).connect(fade);
 
     this.binaural = { left, right, gain, loopId: null };
-    this.scheduleBinaural(design);
-    this.resetBinauralLoop(design);
+    this.scheduleBinaural(design, offsetSec);
+    this.resetBinauralLoop(design, offsetSec);
     left.start();
     right.start();
 
@@ -238,36 +240,47 @@ export class AudioEngine {
     };
   }
 
-  /** Lay keyframe automation onto the oscillators/gain from `currentTime`. */
-  private scheduleBinaural(design: BinauralDesign) {
+  /** Lay keyframe automation onto the oscillators/gain from `currentTime`,
+   *  starting `offset` seconds into the track (the value at the offset is set
+   *  immediately, then later keyframes ramp from there). */
+  private scheduleBinaural(design: BinauralDesign, offset = 0) {
     if (!this.binaural || !this.ctx) return;
     const { left, right, gain } = this.binaural;
     const t0 = this.ctx.currentTime;
-    const kfs = design.keyframes.length
-      ? design.keyframes
-      : [{ t: 0, base: 180, beat: 10, volume: 0.8 }];
 
     for (const p of [left.frequency, right.frequency, gain.gain]) {
       p.cancelScheduledValues(t0);
     }
-    const first = kfs[0];
-    left.frequency.setValueAtTime(first.base, t0);
-    right.frequency.setValueAtTime(first.base + first.beat, t0);
-    gain.gain.setValueAtTime(Math.max(0.0001, first.volume * BINAURAL_LEVEL), t0);
+    const start = interpolateBinaural(design, offset);
+    left.frequency.setValueAtTime(start.base, t0);
+    right.frequency.setValueAtTime(start.base + start.beat, t0);
+    gain.gain.setValueAtTime(Math.max(0.0001, start.volume * BINAURAL_LEVEL), t0);
 
-    for (const k of kfs) {
-      const at = t0 + Math.max(0, k.t);
+    for (const k of design.keyframes) {
+      if (k.t <= offset) continue;
+      const at = t0 + (k.t - offset);
       left.frequency.linearRampToValueAtTime(k.base, at);
       right.frequency.linearRampToValueAtTime(k.base + k.beat, at);
       gain.gain.linearRampToValueAtTime(Math.max(0.0001, k.volume * BINAURAL_LEVEL), at);
     }
   }
 
-  private resetBinauralLoop(design: BinauralDesign) {
+  /** (Re)arm the loop. With an offset, the first re-anchor fires when the track
+   *  reaches its end (`length − offset` away) and snaps back to t=0; thereafter
+   *  it repeats every full length — keeping audio in phase with a UI cursor that
+   *  wraps at the same moment. */
+  private resetBinauralLoop(design: BinauralDesign, offset = 0) {
     if (!this.binaural) return;
     if (this.binaural.loopId) clearInterval(this.binaural.loopId);
-    const period = Math.max(1, design.durationSec) * 1000;
-    this.binaural.loopId = setInterval(() => this.scheduleBinaural(design), period);
+    const dur = Math.max(1, design.durationSec);
+    const period = dur * 1000;
+    const firstDelay = Math.max(1, dur - offset) * 1000;
+    this.binaural.loopId = setTimeout(() => {
+      this.scheduleBinaural(design, 0);
+      if (this.binaural) {
+        this.binaural.loopId = setInterval(() => this.scheduleBinaural(design, 0), period);
+      }
+    }, firstDelay);
   }
 
   stopTone() {

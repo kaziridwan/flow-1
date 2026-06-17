@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from "react";
+import type { AudioEngine } from "../lib/audio";
 import { interpolateBinaural, sortKeyframes } from "../lib/audioDesign";
-import { mmss } from "../lib/format";
+import { hms, humanDuration, parseHms } from "../lib/format";
 import type { BinauralDesign, BinauralKeyframe } from "../types";
 import { Eyebrow } from "./controls";
 
@@ -7,6 +9,8 @@ const BASE_MIN = 50;
 const BASE_MAX = 500;
 const BEAT_MIN = 0.5;
 const BEAT_MAX = 40;
+const DUR_MIN = 60;
+const DUR_MAX = 9000; // 2.5 hours
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
@@ -14,15 +18,24 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
  * length and a list of keyframes (base carrier, beat offset, volume); the
  * engine interpolates between them and loops. Kept intentionally modest:
  * numeric rows + a base/beat sparkline rather than a full DAW.
+ *
+ * Invariant (see types.ts): keyframes stay sorted by time, the first sits at
+ * t=0 and the last at t=durationSec — so those two times are locked in the UI.
+ * A live preview plays the track with a draggable cursor for scrubbing.
  */
 export function BinauralEngine({
   design,
   onChange,
+  engine,
+  masterVolume,
 }: {
   design: BinauralDesign;
   onChange: (next: BinauralDesign) => void;
+  engine: AudioEngine;
+  masterVolume: number;
 }) {
   const kfs = design.keyframes;
+  const lastIdx = kfs.length - 1;
 
   const commit = (next: BinauralKeyframe[]) =>
     onChange({ ...design, keyframes: sortKeyframes(next) });
@@ -47,29 +60,145 @@ export function BinauralEngine({
   };
 
   const setDuration = (durationSec: number) => {
-    // Clamp keyframe times into the new length so the schedule stays valid.
+    // Keep the endpoints pinned (first=0, last=length) and middle keyframes in
+    // range, so the schedule and the locked time fields stay consistent.
     onChange({
       ...design,
       durationSec,
       keyframes: sortKeyframes(
-        kfs.map((k) => ({ ...k, t: clamp(k.t, 0, durationSec) })),
+        kfs.map((k, i) => {
+          if (i === 0) return { ...k, t: 0 };
+          if (i === lastIdx) return { ...k, t: durationSec };
+          return { ...k, t: clamp(k.t, 0, durationSec) };
+        }),
       ),
     });
   };
 
+  // --- Live preview + scrub cursor ----------------------------------------
+  const [previewing, setPreviewing] = useState(false);
+  const [posSec, setPosSec] = useState(0);
+  const designRef = useRef(design);
+  designRef.current = design;
+  // Cursor position is driven by rAF while playing; these anchor the math.
+  const posRef = useRef(0);
+  const startedAtRef = useRef(0);
+  const startOffsetRef = useRef(0);
+  const draggingRef = useRef(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const dur = Math.max(1, design.durationSec);
+
+  // Begin playback (from the current cursor) on toggle-on; stop otherwise and
+  // always on unmount (the sheet unmounts its children when closed).
+  useEffect(() => {
+    if (previewing) {
+      engine.resume();
+      engine.setVolume(masterVolume);
+      startedAtRef.current = performance.now();
+      startOffsetRef.current = clamp(posRef.current, 0, dur);
+      engine.playBinauralTrack(designRef.current, startOffsetRef.current);
+      engine.duck(false);
+    } else {
+      engine.stopTone();
+    }
+    return () => engine.stopTone();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewing, engine, masterVolume]);
+
+  // Re-schedule the playing track on edits, continuing from the live cursor so
+  // the audio reflects new keyframes/length without a click or a cursor jump.
+  useEffect(() => {
+    if (!previewing) return;
+    const pos = clamp(posRef.current, 0, dur);
+    posRef.current = pos;
+    startedAtRef.current = performance.now();
+    startOffsetRef.current = pos;
+    engine.playBinauralTrack(designRef.current, pos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewing, engine, design.keyframes, design.durationSec]);
+
+  // Advance the cursor each frame while playing (unless the user is scrubbing).
+  useEffect(() => {
+    if (!previewing) return;
+    let raf = 0;
+    const tick = () => {
+      if (!draggingRef.current) {
+        const elapsed = (performance.now() - startedAtRef.current) / 1000;
+        const pos = (((startOffsetRef.current + elapsed) % dur) + dur) % dur;
+        posRef.current = pos;
+        setPosSec(pos);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [previewing, dur]);
+
+  const seekTo = (clientX: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const frac = clamp((clientX - rect.left) / rect.width, 0, 1);
+    const pos = frac * Math.max(1, designRef.current.durationSec);
+    posRef.current = pos;
+    setPosSec(pos);
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    draggingRef.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    seekTo(e.clientX);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (draggingRef.current) seekTo(e.clientX);
+  };
+  const endDrag = () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    if (previewing) {
+      // Resume the audio from the scrubbed position.
+      startedAtRef.current = performance.now();
+      startOffsetRef.current = clamp(posRef.current, 0, dur);
+      engine.playBinauralTrack(designRef.current, startOffsetRef.current);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
+      <button
+        type="button"
+        onClick={() => setPreviewing((p) => !p)}
+        aria-pressed={previewing}
+        aria-label={previewing ? "Stop preview" : "Play preview"}
+        className="neu-raised flex items-center justify-center gap-2 px-4 py-3 text-ink transition-transform active:scale-[0.99] active:neu-pressed"
+      >
+        <span className={previewing ? "text-accent" : "text-ink"}>
+          {previewing ? <StopIcon /> : <PlayIcon />}
+        </span>
+        <span className="font-mono text-xs font-bold uppercase tracking-[0.12em]">
+          {previewing ? `Stop · ${hms(posSec)}` : "Preview"}
+        </span>
+        {previewing && (
+          <span
+            className="pulsing h-2 w-2 rounded-full"
+            style={{ background: "#ff4f00" }}
+            aria-hidden
+          />
+        )}
+      </button>
+
       <div className="neu-flat px-4 py-3">
         <div className="flex items-center justify-between">
           <Eyebrow>Track length</Eyebrow>
           <span className="font-mono text-xs font-bold text-muted">
-            {Math.round(design.durationSec / 60)} min
+            {humanDuration(design.durationSec)}
           </span>
         </div>
         <input
           type="range"
-          min={60}
-          max={1800}
+          min={DUR_MIN}
+          max={DUR_MAX}
           step={60}
           value={design.durationSec}
           onChange={(e) => setDuration(Number(e.target.value))}
@@ -78,62 +207,86 @@ export function BinauralEngine({
         />
       </div>
 
-      <Sparkline design={design} />
+      <div
+        ref={trackRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        className="relative cursor-ew-resize touch-none"
+        role="slider"
+        aria-label="Preview position"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(dur)}
+        aria-valuenow={Math.round(posSec)}
+        aria-valuetext={hms(posSec)}
+        tabIndex={0}
+      >
+        <Sparkline design={design} cursorFrac={posSec / dur} />
+      </div>
 
       <div className="flex flex-col gap-2">
         <Eyebrow>Keyframes</Eyebrow>
-        {kfs.map((k, i) => (
-          <div key={i} className="neu-inset flex flex-col gap-2 px-3 py-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-xs font-bold text-muted">
-                @ {mmss(k.t)}
-              </span>
-              <button
-                type="button"
-                aria-label={`Remove keyframe at ${mmss(k.t)}`}
-                onClick={() => removeKf(i)}
-                disabled={kfs.length <= 2}
-                className="text-xs font-bold text-muted disabled:opacity-30"
-              >
-                Remove
-              </button>
+        {kfs.map((k, i) => {
+          const locked = i === 0 || i === lastIdx;
+          return (
+            <div key={i} className="neu-inset flex flex-col gap-2 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs font-bold text-muted">
+                  @ {hms(k.t)}
+                  {locked && (
+                    <span className="ml-2 text-faint">
+                      {i === 0 ? "start" : "end"}
+                    </span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Remove keyframe at ${hms(k.t)}`}
+                  onClick={() => removeKf(i)}
+                  disabled={locked}
+                  className="text-xs font-bold text-muted disabled:opacity-30"
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <TimeField
+                  label="Time"
+                  value={k.t}
+                  min={0}
+                  max={design.durationSec}
+                  locked={locked}
+                  onChange={(v) => setKf(i, { t: clamp(v, 0, design.durationSec) })}
+                />
+                <Field
+                  label="Volume %"
+                  value={Math.round(k.volume * 100)}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(v) => setKf(i, { volume: clamp(v, 0, 100) / 100 })}
+                />
+                <Field
+                  label="Base Hz"
+                  value={k.base}
+                  min={BASE_MIN}
+                  max={BASE_MAX}
+                  step={5}
+                  onChange={(v) => setKf(i, { base: clamp(v, BASE_MIN, BASE_MAX) })}
+                />
+                <Field
+                  label="Beat Hz"
+                  value={k.beat}
+                  min={BEAT_MIN}
+                  max={BEAT_MAX}
+                  step={0.5}
+                  onChange={(v) => setKf(i, { beat: clamp(v, BEAT_MIN, BEAT_MAX) })}
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Field
-                label="Time (s)"
-                value={k.t}
-                min={0}
-                max={design.durationSec}
-                step={5}
-                onChange={(v) => setKf(i, { t: clamp(v, 0, design.durationSec) })}
-              />
-              <Field
-                label="Volume %"
-                value={Math.round(k.volume * 100)}
-                min={0}
-                max={100}
-                step={5}
-                onChange={(v) => setKf(i, { volume: clamp(v, 0, 100) / 100 })}
-              />
-              <Field
-                label="Base Hz"
-                value={k.base}
-                min={BASE_MIN}
-                max={BASE_MAX}
-                step={5}
-                onChange={(v) => setKf(i, { base: clamp(v, BASE_MIN, BASE_MAX) })}
-              />
-              <Field
-                label="Beat Hz"
-                value={k.beat}
-                min={BEAT_MIN}
-                max={BEAT_MAX}
-                step={0.5}
-                onChange={(v) => setKf(i, { beat: clamp(v, BEAT_MIN, BEAT_MAX) })}
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })}
         <button
           type="button"
           onClick={addKf}
@@ -145,7 +298,7 @@ export function BinauralEngine({
 
       <p className="text-xs text-muted">
         The carrier (base) and beat glide between keyframes; the track loops every
-        {` ${Math.round(design.durationSec / 60)} min`}. Use stereo headphones.
+        {` ${humanDuration(design.durationSec)}`}. Use stereo headphones.
       </p>
     </div>
   );
@@ -182,8 +335,75 @@ function Field({
   );
 }
 
-/** Base-frequency sparkline across the track, with keyframe dots. */
-function Sparkline({ design }: { design: BinauralDesign }) {
+/** HH:MM:SS time entry. Commits on blur/Enter (reverting malformed input);
+ *  locked endpoints render read-only since first=0 and last=length. */
+function TimeField({
+  label,
+  value,
+  min,
+  max,
+  locked,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  locked: boolean;
+  onChange: (v: number) => void;
+}) {
+  const [text, setText] = useState(hms(value));
+  const [editing, setEditing] = useState(false);
+
+  // Reflect external changes (e.g. sort/clamp) while not actively editing.
+  useEffect(() => {
+    if (!editing) setText(hms(value));
+  }, [value, editing]);
+
+  const commit = () => {
+    setEditing(false);
+    const parsed = parseHms(text);
+    if (parsed == null) {
+      setText(hms(value));
+      return;
+    }
+    onChange(clamp(parsed, min, max));
+  };
+
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="tech-label">{label}</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={locked ? hms(value) : text}
+        readOnly={locked}
+        disabled={locked}
+        onFocus={() => setEditing(true)}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            commit();
+            e.currentTarget.blur();
+          }
+        }}
+        aria-label={label}
+        className="neu-flat w-full bg-transparent px-2 py-1 font-mono text-sm font-bold text-ink outline-none disabled:opacity-50"
+      />
+    </label>
+  );
+}
+
+/** Base-frequency sparkline across the track, with keyframe dots and an
+ *  optional playback cursor (0..1 along the width). */
+function Sparkline({
+  design,
+  cursorFrac,
+}: {
+  design: BinauralDesign;
+  cursorFrac?: number;
+}) {
   const W = 100;
   const H = 28;
   const dur = Math.max(1, design.durationSec);
@@ -197,6 +417,7 @@ function Sparkline({ design }: { design: BinauralDesign }) {
     return [x, y] as const;
   };
   const pts = design.keyframes.map(pt);
+  const cx = cursorFrac != null ? clamp(cursorFrac, 0, 1) * W : null;
 
   return (
     <svg
@@ -215,6 +436,33 @@ function Sparkline({ design }: { design: BinauralDesign }) {
       {pts.map(([x, y], i) => (
         <circle key={i} cx={x} cy={y} r={1.8} fill="var(--color-accent)" />
       ))}
+      {cx != null && (
+        <line
+          x1={cx}
+          y1={0}
+          x2={cx}
+          y2={H}
+          stroke="#ff4f00"
+          strokeWidth={1.4}
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="6" y="6" width="12" height="12" rx="2" />
     </svg>
   );
 }

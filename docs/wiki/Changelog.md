@@ -4,6 +4,11 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-17 · Binaural Engine: live preview + scrub cursor, locked endpoints, 2.5 h, HH:MM:SS
+**What:** Added a **Preview** play/stop button to the Binaural Engine (mirrors the Noise Designer) that plays the keyframed track live, with a **draggable cursor** over the sparkline for scrubbing/seeking; the button label shows the cursor time. Raised max track length **30 min → 2.5 h**, switched keyframe time inputs to **HH:MM:SS** (commit on blur/Enter), and **locked the first/last keyframe times** (first pinned to 0, last to track length and auto-updated when length changes; both non-removable). New `hms`/`parseHms` in `format.ts`; `AudioEngine.playBinauralTrack`/`scheduleBinaural` gained an `offsetSec` seek with phase-synced looping; threaded `engine`+`masterVolume` into `BinauralEngine`.
+**Why:** 0.2 follow-up — you couldn't hear a binaural track while designing it or scrub it, minute-only times were too coarse for long tracks, and the endpoints must satisfy the `BinauralDesign` invariant.
+**Files:** `src/components/BinauralEngine.tsx`, `src/components/AudioPicker.tsx`, `src/lib/audio.ts`, `src/lib/format.ts`, `src/lib/format.test.ts`, `docs/wiki/{Features,Internals,Decisions}.md`.
+
 ## 2026-06-17 · Fix Cloudflare deploy: Workers Static Assets config
 **What:** Replaced `pages_build_output_dir = "dist"` in `wrangler.toml` with an `[assets]` block (`directory = "./dist"`, `not_found_handling = "single-page-application"`).
 **Why:** Cloudflare's Workers Builds flow runs `wrangler deploy`, which ignores `pages_build_output_dir` and failed with "Missing entry-point to Worker script or to assets directory". The `[assets]` block serves `dist/` as a static-assets Worker with SPA fallback. Verified `wrangler deploy --dry-run` reads `./dist`.

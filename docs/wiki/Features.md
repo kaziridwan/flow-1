@@ -38,7 +38,7 @@ Chosen from **four categories** (default **Binaural / Flow**, volume 60%, "mute 
 |---|---|
 | Silent | nothing |
 | **Noise** | a noise color — White / Pink / Brown / Blue — synthesised live via Web Audio API. ⋯ opens the **Noise Designer**: an X/Y pad blending all four colors, a low-pass filter (cutoff + resonance), a noise volume, and a **Preview** play/stop button that plays the design live as you tweak it. |
-| **Binaural** | two-oscillator stereo beats; presets below. ⋯ opens the **Binaural Engine**: a track length plus keyframes (time, base carrier, beat offset, volume) that glide between values and loop. |
+| **Binaural** | two-oscillator stereo beats; presets below. ⋯ opens the **Binaural Engine**: a track length (1 min – **2.5 h**) plus keyframes (time in **HH:MM:SS**, base carrier, beat offset, volume) that glide between values and loop. The first/last keyframe times are **locked** (first at 0, last at the track length — the last follows length changes) and can't be removed. A **Preview** play/stop button plays the track live; a **draggable cursor** over the sparkline scrubs/seeks and the button shows the cursor time. |
 | **Custom Media** | sub-tabs: **YouTube** (visible IFrame player), **Podcast** (hidden `<audio>`, direct media URL), **Media URL** (hidden `<audio>`). |
 
 **Binaural presets** (`src/lib/audioDesign.ts`): Flow 180 Hz / 10 Hz beat (alpha) · Deep focus 210 Hz / 16 Hz (beta) · Calm 150 Hz / 6 Hz (theta). Needs stereo headphones.
