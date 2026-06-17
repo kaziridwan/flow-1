@@ -25,6 +25,16 @@ The brief frames FLOW-1 as one app in an ecosystem for sustaining flow. Two head
 - **Theming** — alternate instrument palettes while keeping the one-bold-element discipline.
 - **PWA / installable + offline** — service worker, self-hosted fonts.
 
+## Cloud provider deployments (AWS, GCP, Azure)
+
+One-click deploy buttons and documented guides for the three major cloud providers. All are viable for a static Vite site; the main work is writing the config files and README buttons.
+
+- **AWS** — S3 + CloudFront (static hosting + CDN). Needs a bucket policy, CloudFront distribution, and ideally an `amplify.yml` or AWS Amplify button so users don't need to configure S3 manually. AWS Amplify offers a GitHub-connected deploy similar to Netlify.
+- **GCP** — Firebase Hosting or Cloud Storage + Cloud CDN. Firebase Hosting is the simplest path: a `firebase.json` rewrite config and a "Deploy to Firebase" button (or a Cloud Shell `git clone && firebase deploy` link).
+- **Azure** — Azure Static Web Apps. Needs a `staticwebapp.config.json` (SPA fallback route) and the standard "Deploy to Azure" button that bootstraps a GitHub Actions workflow.
+
+For all three: add the config file, wire the README button, and document the target in `Deployment.md`. No server-side changes needed — the app remains 100% static.
+
 ## Architectural notes for the ecosystem
 
 - Keep a **stable session contract** (the `Block[]` timeline + current phase) so a blocking extension or HR bridge can subscribe without coupling to UI.

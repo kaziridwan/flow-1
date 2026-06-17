@@ -14,6 +14,14 @@ Static SPA. `pnpm run build` runs `tsc -b && vite build` and emits `dist/` (`ind
 
 `wrangler.toml` sets `pages_build_output_dir = "dist"`. The README button points at `https://deploy.workers.cloudflare.com/?url=…`. In the Pages dashboard the equivalent settings are build command `pnpm run build`, output directory `dist`.
 
+## Netlify
+
+No config file needed — Netlify auto-detects Vite and uses `npm run build` / output `dist`. The README button points at `https://app.netlify.com/start/deploy?repository=…`. Replace `kaziridwan/flow-1` with the real repo.
+
+## Render
+
+No config file needed — Render's Static Site type auto-detects `npm run build` and serves `dist`. The README button points at `https://render.com/deploy?repo=…`. Replace `kaziridwan/flow-1` with the real repo.
+
 ## Runtime dependencies on the network
 
 Nothing server-side, but the page fetches at runtime:

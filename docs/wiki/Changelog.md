@@ -4,6 +4,16 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-17 · Roadmap: AWS, GCP, Azure deployment plans
+**What:** Added a "Cloud provider deployments" section to `Roadmap.md` covering AWS (S3/CloudFront or Amplify), GCP (Firebase Hosting), and Azure (Static Web Apps).
+**Why:** Future work to expand deploy targets beyond Vercel, Cloudflare, Netlify, and Render.
+**Files:** `docs/wiki/Roadmap.md`.
+
+## 2026-06-17 · Added Netlify and Render deploy buttons
+**What:** Added one-click deploy buttons for Netlify and Render to `README.md`; documented both targets in `Deployment.md`.
+**Why:** Netlify and Render are widely used for static Vite sites and needed no extra config files — easy wins alongside the existing Vercel and Cloudflare buttons.
+**Files:** `README.md`, `docs/wiki/Deployment.md`.
+
 ## 2026-06-17 · Moved handoff into docs/roadmap/
 **What:** Relocated `claude-code-handoff.md` (repo root) → `docs/roadmap/handoff.md` and fixed every pointer to it.
 **Why:** Keep entry-point docs under `docs/` instead of the repo root; group it with roadmap material.

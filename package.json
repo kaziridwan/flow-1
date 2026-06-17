@@ -1,7 +1,7 @@
 {
   "name": "flow-1",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.1.0",
   "type": "module",
   "description": "FLOW-1 — a neumorphic, teenage-engineering-inspired pomodoro instrument with binaural beats, white noise, YouTube, podcast and media audio.",
   "scripts": {
