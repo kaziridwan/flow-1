@@ -16,7 +16,7 @@ Static SPA. `pnpm run build` runs `tsc -b && vite build` and emits `dist/` (`ind
 
 ## Cloudflare Pages
 
-`wrangler.toml` sets `pages_build_output_dir = "dist"`. The README button points at `https://deploy.workers.cloudflare.com/?url=…`. In the Pages dashboard the equivalent settings are build command `pnpm run build`, output directory `dist`.
+Deployed as a **Workers Static Assets** site (the unified Workers Builds flow runs `wrangler deploy`, not a Pages build). `wrangler.toml` therefore uses an `[assets]` block (`directory = "./dist"`, `not_found_handling = "single-page-application"`) — **not** `pages_build_output_dir`, which `wrangler deploy` ignores (that key only applies to the legacy Pages build, and its absence is what caused "Missing entry-point to Worker script or to assets directory"). In the dashboard set the **build command** to `pnpm run build`; the deploy command stays the default `npx wrangler deploy`. Validate config locally with `npx wrangler deploy --dry-run` (uploads nothing).
 
 ## Netlify
 

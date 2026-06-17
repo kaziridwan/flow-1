@@ -4,6 +4,11 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-17 · Fix Cloudflare deploy: Workers Static Assets config
+**What:** Replaced `pages_build_output_dir = "dist"` in `wrangler.toml` with an `[assets]` block (`directory = "./dist"`, `not_found_handling = "single-page-application"`).
+**Why:** Cloudflare's Workers Builds flow runs `wrangler deploy`, which ignores `pages_build_output_dir` and failed with "Missing entry-point to Worker script or to assets directory". The `[assets]` block serves `dist/` as a static-assets Worker with SPA fallback. Verified `wrangler deploy --dry-run` reads `./dist`.
+**Files:** `wrangler.toml`, `docs/wiki/Deployment.md`.
+
 ## 2026-06-17 · Fix Cloudflare build: single lockfile + pinned pnpm
 **What:** Removed the stray `package-lock.json` (npm artifact) so `pnpm-lock.yaml` is the only lockfile, and added `"packageManager": "pnpm@10.34.3"` to `package.json`.
 **Why:** Cloudflare failed with `ERR_PNPM_OUTDATED_LOCKFILE` ("specifiers in the lockfile …") — two committed lockfiles made CI package-manager detection ambiguous and risked a pnpm version skew. Verified `CI=true pnpm install --frozen-lockfile` passes.
