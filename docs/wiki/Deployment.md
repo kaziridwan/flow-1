@@ -2,6 +2,10 @@
 
 Static SPA. `pnpm run build` runs `tsc -b && vite build` and emits `dist/` (`index.html` + hashed `assets/`). Serve `dist/` as static files anywhere.
 
+## Package manager — pnpm only
+
+**This is a pnpm project. The only committed lockfile is `pnpm-lock.yaml`.** Never run `npm install`/`yarn` here — that drops a second lockfile (`package-lock.json`) which makes CI package-manager detection ambiguous and breaks deploys (Cloudflare ran pnpm with the CI-default `--frozen-lockfile` and failed `ERR_PNPM_OUTDATED_LOCKFILE`). `package.json` pins `"packageManager": "pnpm@10.34.3"` so Cloudflare/Vercel/etc. use the same pnpm that produced the lockfile (via corepack). Bump that field and regenerate the lockfile together.
+
 ## Build gate
 
 `pnpm run build` **must pass** before any handoff — it type-checks (strict) and bundles. Current output is ~71 kB gzipped JS + ~4.6 kB gzipped CSS. `pnpm test` runs the Vitest unit suite (pure logic: schedule, format, migration); test files are excluded from the build and ship nothing.

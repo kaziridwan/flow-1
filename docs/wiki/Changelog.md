@@ -4,6 +4,11 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-17 · Fix Cloudflare build: single lockfile + pinned pnpm
+**What:** Removed the stray `package-lock.json` (npm artifact) so `pnpm-lock.yaml` is the only lockfile, and added `"packageManager": "pnpm@10.34.3"` to `package.json`.
+**Why:** Cloudflare failed with `ERR_PNPM_OUTDATED_LOCKFILE` ("specifiers in the lockfile …") — two committed lockfiles made CI package-manager detection ambiguous and risked a pnpm version skew. Verified `CI=true pnpm install --frozen-lockfile` passes.
+**Files:** `package.json`, `package-lock.json` (deleted), `docs/wiki/Deployment.md`.
+
 ## 2026-06-17 · 0.2.0: reorder setup, collapse meal breaks
 **What:** Reordered the Setup sections to **01 Session · 02 Sound · 03 Meal breaks · 04 Preview** (Sound moved above Meal breaks) and made **Meal breaks** collapsible, collapsed by default (like Preview).
 **Why:** Sound is the more common edit; meal breaks and the timeline are secondary, so they stay tucked away by default.
