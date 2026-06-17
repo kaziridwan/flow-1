@@ -14,13 +14,13 @@ It is the web entry of a larger envisioned focus ecosystem (website/app blocking
 - Audio: Web Audio API + YouTube IFrame API. No audio files shipped.
 
 ```bash
-npm install
-npm run dev      # dev server
-npm run build    # tsc -b && vite build  — MUST pass before any handoff
-npm run preview  # serve the production build
+pnpm install
+pnpm run dev      # dev server
+pnpm run build    # tsc -b && vite build  — MUST pass before any handoff
+pnpm run preview  # serve the production build
 ```
 
-**Always run `npm run build` before finishing a task.** TypeScript is strict (`noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`). The build is the gate.
+**Always run `pnpm run build` before finishing a task.** TypeScript is strict (`noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`). The build is the gate.
 
 ## Conventions
 
@@ -58,6 +58,7 @@ At the end of **every** working session / task, before reporting completion:
 6. If you changed **build, config, or deployment** → update `docs/wiki/Deployment.md`.
 7. If you created a **new wiki page**, link it from `docs/wiki/Home.md`. Keep all `Home.md` links valid.
 8. If you completed or reframed **roadmap work** → update `docs/wiki/Roadmap.md`.
+9. If you generated a new plan from `agents-context/plans/*` → create the generated plan in `docs/plans/*` with the file name from the original doc
 
 Rules of thumb:
 - Documentation lands in the **same change** as the code it describes — never "later".

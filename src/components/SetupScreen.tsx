@@ -1,6 +1,8 @@
+import { useState } from "react";
+import type { AudioEngine } from "../lib/audio";
 import { LONG_BREAK_MIN_SESSIONS, MEAL_WINDOWS, usesLongBreaks } from "../lib/schedule";
 import type {
-  AudioConfig,
+  AudioSettings,
   Block,
   MealKey,
   SessionConfig,
@@ -16,18 +18,22 @@ export function SetupScreen({
   setCfg,
   audio,
   setAudio,
+  engine,
   blocks,
   start,
   onStart,
 }: {
   cfg: SessionConfig;
   setCfg: (c: SessionConfig) => void;
-  audio: AudioConfig;
-  setAudio: (a: AudioConfig) => void;
+  audio: AudioSettings;
+  setAudio: (a: AudioSettings) => void;
+  engine: AudioEngine;
   blocks: Block[];
   start: Date;
   onStart: () => void;
 }) {
+  const [mealsOpen, setMealsOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const set = (patch: Partial<SessionConfig>) => setCfg({ ...cfg, ...patch });
   const setMeal = (key: MealKey, patch: Partial<SessionConfig["meals"][MealKey]>) =>
     setCfg({ ...cfg, meals: { ...cfg.meals, [key]: { ...cfg.meals[key], ...patch } } });
@@ -95,12 +101,38 @@ export function SetupScreen({
         </p>
       </section>
 
-      {/* meals */}
+      {/* transitions + audio */}
       <section className="neu-raised p-5">
         <div className="mb-3">
-          <Eyebrow>02 · Meal breaks</Eyebrow>
+          <Eyebrow>02 · Sound</Eyebrow>
         </div>
-        <div className="flex flex-col gap-2.5">
+        <div className="mb-3">
+          <Toggle
+            label="Transition bell"
+            hint="A soft chime when a phase changes"
+            checked={cfg.bell}
+            onChange={(v) => set({ bell: v })}
+          />
+        </div>
+        <AudioPicker cfg={audio} onChange={setAudio} engine={engine} />
+      </section>
+
+      {/* meals */}
+      <section className="neu-raised p-5">
+        <button
+          type="button"
+          onClick={() => setMealsOpen((o) => !o)}
+          aria-expanded={mealsOpen}
+          className="flex w-full items-center justify-between"
+        >
+          <Eyebrow>03 · Meal breaks</Eyebrow>
+          <span className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-muted">
+            {mealsOpen ? "Hide ▴" : "Show ▾"}
+          </span>
+        </button>
+        {mealsOpen && (
+          <>
+        <div className="mt-3 flex flex-col gap-2.5">
           {MEALS.map((key) => {
             const w = MEAL_WINDOWS[key];
             const m = cfg.meals[key];
@@ -157,30 +189,28 @@ export function SetupScreen({
           Meals are inserted only if a focus session would begin inside the
           window — so they follow your real start time.
         </p>
-      </section>
-
-      {/* transitions + audio */}
-      <section className="neu-raised p-5">
-        <div className="mb-3">
-          <Eyebrow>03 · Sound</Eyebrow>
-        </div>
-        <div className="mb-3">
-          <Toggle
-            label="Transition bell"
-            hint="A soft chime when a phase changes"
-            checked={cfg.bell}
-            onChange={(v) => set({ bell: v })}
-          />
-        </div>
-        <AudioPicker cfg={audio} onChange={setAudio} />
+          </>
+        )}
       </section>
 
       {/* preview */}
       <section className="neu-raised p-5">
-        <div className="mb-3">
+        <button
+          type="button"
+          onClick={() => setPreviewOpen((o) => !o)}
+          aria-expanded={previewOpen}
+          className="flex w-full items-center justify-between"
+        >
           <Eyebrow>04 · Preview</Eyebrow>
-        </div>
-        <SchedulePreview blocks={blocks} start={start} />
+          <span className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-muted">
+            {previewOpen ? "Hide ▴" : "Show ▾"}
+          </span>
+        </button>
+        {previewOpen && (
+          <div className="mt-3">
+            <SchedulePreview blocks={blocks} start={start} />
+          </div>
+        )}
       </section>
 
       <button

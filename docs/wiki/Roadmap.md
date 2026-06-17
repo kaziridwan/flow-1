@@ -9,14 +9,23 @@ The brief frames FLOW-1 as one app in an ecosystem for sustaining flow. Two head
 1. **Website / app blocking** — restrict distracting sites/apps during focus blocks. In a browser-only context this is limited (a web page can't block other apps); realistically needs a **browser extension** (declarativeNetRequest) and/or OS-level companion. Scope as a separate surface that shares the session state/contract.
 2. **Wearable heart-rate → adaptive binaural beats** — read live heart rate from a wearable and modulate the binaural beat frequency toward a target. This needs a data source (e.g. a companion app streaming HR) and a cloud or local bridge; the web app would consume an HR stream and map deviation-from-baseline → beat Hz. The synthesised binaural engine in `src/lib/audio.ts` is already the hook point (`playBinaural(base, beat)` can be re-targeted live).
 
+## Road to v1 (sound redesign + hardening)
+
+Phased, incrementally shippable. Plan source: `agents-context/plans/20260617091148-road-to-v1.md`.
+
+- ✅ **Phase 0 — test harness + audio config migration** (Vitest; `migrateAudio` v1→v2; pure `audioDesign` helpers).
+- ✅ **Phase 1 — categorized Sound panel** (Silent/Noise/Binaural/Custom Media; `AudioSettings` v2; `Sheet` primitive; blue noise).
+- ✅ **Phase 2 — Noise Designer**: X/Y blend pad over the 4 corners + low-pass (cutoff/Q/volume). Engine grew a simultaneous noise mixer (`playNoiseBlend`, per-color gains → one `BiquadFilter`), replacing the interim dominant-corner playback. See ADR-11.
+- ✅ **Phase 3 — Binaural Engine**: keyframed track (base/beat/volume interpolated over a length, looping) via `playBinauralTrack`. Replaced the interim flat playback; subsumed "custom binaural entry". See ADR-12.
+- ✅ **Phase 4 — reliability/UX hardening**: `aria-live` + keyboard shortcuts (Space/n), persist in-progress run (ADR-13), crossfade on break transitions (ADR-14).
+- ◻ **Phase 6 (v1.x) — Mixes**: mynoise-style multi-source mixer; a new `mix` category over the Phase 2 mixer bus.
+
 ## Near-term, in-app (low risk, high value)
 
-- **Tests** — add Vitest; cover `schedule.ts` (meal-window placement, long-break rule, last-block-no-break) and `format.ts` (`youtubeId` URL shapes). Highest ROI given the pure logic.
-- **Persist an in-progress run** across reloads (store `committed` + elapsed; restore on load).
-- **`aria-live` timer announcements** + keyboard shortcuts (space = pause/resume, n = skip).
-- **Config migration** — replace the shallow `localStorage` merge with a versioned migration before adding fields inside `meals.*` (see handoff tech-debt #4).
-- **Crossfade audio** on break transitions instead of hard restart.
-- **Custom binaural entry** (free base/beat) alongside the presets.
+- ✅ **Persist an in-progress run** across reloads — `runStore.ts` + `useTimer.restore` (Phase 4, ADR-13).
+- ✅ **`aria-live` timer announcements** + keyboard shortcuts (Space/n) — Phase 4.
+- ✅ **Config migration** — versioned `migrateAudio()` for `flow.audio` (Phase 0; `flow.cfg` still shallow-merged until its schema changes).
+- ✅ **Crossfade audio** on break transitions instead of hard restart — Phase 4, ADR-14.
 
 ## Medium-term
 

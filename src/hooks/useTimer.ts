@@ -116,6 +116,26 @@ export function useTimer(blocks: Block[], opts: Options = {}) {
     else if (!ok) clearLoop();
   }, [goTo, startLoop, status]);
 
+  /** Resume a persisted run at a given block/remaining (running or paused). */
+  const restore = useCallback(
+    (i: number, rem: number, paused: boolean) => {
+      const list = blocksRef.current;
+      if (i < 0 || i >= list.length) return;
+      indexRef.current = i;
+      setIndex(i);
+      setRemaining(rem);
+      lastSecRef.current = Math.ceil(rem);
+      deadlineRef.current = performance.now() + rem * 1000;
+      if (paused) {
+        setStatus("paused");
+      } else {
+        setStatus("running");
+        startLoop();
+      }
+    },
+    [startLoop],
+  );
+
   const reset = useCallback(() => {
     clearLoop();
     indexRef.current = 0;
@@ -129,5 +149,16 @@ export function useTimer(blocks: Block[], opts: Options = {}) {
 
   const currentBlock = status === "idle" ? null : (blocks[index] ?? null);
 
-  return { status, index, remaining, currentBlock, start, pause, resume, skip, reset };
+  return {
+    status,
+    index,
+    remaining,
+    currentBlock,
+    start,
+    pause,
+    resume,
+    skip,
+    reset,
+    restore,
+  };
 }

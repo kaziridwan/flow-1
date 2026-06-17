@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AudioEngine } from "./lib/audio";
+import { defaultAudioSettings } from "./lib/audioDesign";
+import { migrateAudio } from "./lib/migrate";
 import { buildSchedule } from "./lib/schedule";
+import { clearRun, restoreRun, saveRun } from "./lib/runStore";
 import { useTimer } from "./hooks/useTimer";
 import { SetupScreen } from "./components/SetupScreen";
 import { RunScreen } from "./components/RunScreen";
-import type { AudioConfig, Block, SessionConfig } from "./types";
+import type { AudioSettings, Block, SessionConfig } from "./types";
 
 const DEFAULT_CFG: SessionConfig = {
   sessions: 4,
@@ -19,14 +22,6 @@ const DEFAULT_CFG: SessionConfig = {
   },
 };
 
-const DEFAULT_AUDIO: AudioConfig = {
-  source: "binaural",
-  preset: "flow",
-  url: "",
-  volume: 0.6,
-  pauseOnBreak: true,
-};
-
 function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -38,9 +33,14 @@ function load<T>(key: string, fallback: T): T {
 
 export default function App() {
   const [cfg, setCfg] = useState<SessionConfig>(() => load("flow.cfg", DEFAULT_CFG));
-  const [audio, setAudio] = useState<AudioConfig>(() =>
-    load("flow.audio", DEFAULT_AUDIO),
-  );
+  const [audio, setAudio] = useState<AudioSettings>(() => {
+    try {
+      const raw = localStorage.getItem("flow.audio");
+      return migrateAudio(raw ? JSON.parse(raw) : null);
+    } catch {
+      return defaultAudioSettings();
+    }
+  });
   const [committed, setCommitted] = useState<{ blocks: Block[]; start: Date } | null>(
     null,
   );
@@ -88,13 +88,67 @@ export default function App() {
   const timerRef = useRef(timer);
   timerRef.current = timer;
 
+  // Position to resume at when restoring a persisted run; null = fresh start.
+  const pendingStartRef = useRef<{
+    index: number;
+    remaining: number;
+    paused: boolean;
+  } | null>(null);
+
   useEffect(() => {
     if (runId > 0) {
       engine.resume();
-      timerRef.current.start();
+      const p = pendingStartRef.current;
+      if (p) {
+        timerRef.current.restore(p.index, p.remaining, p.paused);
+        pendingStartRef.current = null;
+      } else {
+        timerRef.current.start();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+
+  // Restore an in-progress run across reloads (once, on mount).
+  useEffect(() => {
+    const r = restoreRun();
+    if (!r) {
+      clearRun();
+      return;
+    }
+    setCommitted({ blocks: r.blocks, start: r.start });
+    pendingStartRef.current = {
+      index: r.index,
+      remaining: r.remaining,
+      paused: r.paused,
+    };
+    setRunId((id) => id + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the run at each block boundary and on pause/resume/stop/complete.
+  useEffect(() => {
+    if (!committed) {
+      clearRun();
+      return;
+    }
+    if (timer.status === "done" || timer.status === "idle") {
+      clearRun();
+      return;
+    }
+    saveRun({
+      blocks: committed.blocks,
+      startMs: committed.start.getTime(),
+      index: timer.index,
+      remaining: timer.remaining,
+      status: timer.status,
+      savedAt: Date.now(),
+    });
+    // timer.remaining intentionally omitted from deps — captured at each block
+    // boundary / pause, not every second (the snapshot derives the rest from
+    // savedAt + wall clock).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [committed, timer.index, timer.status]);
 
   const handleStart = () => {
     const start = new Date();
@@ -166,6 +220,7 @@ export default function App() {
           setCfg={setCfg}
           audio={audio}
           setAudio={setAudio}
+          engine={engine}
           blocks={previewBlocks}
           start={now}
           onStart={handleStart}

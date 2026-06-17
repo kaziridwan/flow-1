@@ -8,4 +8,4 @@ dist-ssr
 .env*
 npm-debug.log*
 yarn-error.log*
-llm-docs
+agents-context

@@ -16,7 +16,7 @@ Replace `kaziridwan/flow-1` in the links below with your repository, then click:
 &nbsp;
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kaziridwan/flow-1)
 
-All four build with `npm run build` and serve the static `dist/` folder. Settings are pre-wired in `vercel.json` (framework: Vite) and `wrangler.toml` (`pages_build_output_dir = "dist"`). Netlify and Render auto-detect the Vite build command and `dist/` output with no extra config files needed.
+All four build with `pnpm run build` and serve the static `dist/` folder. Settings are pre-wired in `vercel.json` (framework: Vite) and `wrangler.toml` (`pages_build_output_dir = "dist"`). Netlify and Render auto-detect the Vite build command and `dist/` output with no extra config files needed.
 
 ## Features
 
@@ -38,10 +38,10 @@ All four build with `npm run build` and serve the static `dist/` folder. Setting
 ## Develop
 
 ```bash
-npm install
-npm run dev      # start the dev server
-npm run build    # type-check + production build to dist/
-npm run preview  # preview the production build
+pnpm install
+pnpm run dev      # start the dev server
+pnpm run build    # type-check + production build to dist/
+pnpm run preview  # preview the production build
 ```
 
 ## Notes

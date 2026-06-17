@@ -1,8 +1,15 @@
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import type { AudioEngine } from "../lib/audio";
-import { BINAURAL_PRESETS } from "../lib/audio";
+import { humanDuration } from "../lib/format";
+import {
+  BINAURAL_PRESET_SEEDS,
+  NOISE_CORNERS,
+  blendCornerColor,
+  matchBinauralPreset,
+} from "../lib/audioDesign";
 import { isBreak } from "../lib/modes";
-import type { AudioConfig, Block, SessionConfig } from "../types";
+import type { AudioSettings, Block, SessionConfig } from "../types";
 import { AudioController } from "./AudioController";
 import { Display } from "./Display";
 import { SchedulePreview } from "./SchedulePreview";
@@ -39,24 +46,24 @@ function TButton({
   );
 }
 
-const sourceLabel = (cfg: AudioConfig): string => {
-  switch (cfg.source) {
+const sourceLabel = (a: AudioSettings): string => {
+  switch (a.category) {
     case "none":
       return "Silent";
-    case "binaural":
-      return `Binaural · ${BINAURAL_PRESETS[cfg.preset].label}`;
-    case "white":
-      return "White noise";
-    case "pink":
-      return "Pink noise";
-    case "brown":
-      return "Brown noise";
-    case "youtube":
-      return "YouTube";
-    case "podcast":
-      return "Podcast";
+    case "noise": {
+      const c = blendCornerColor(a.noise.blend);
+      return c ? `${NOISE_CORNERS[c].label} noise` : "Custom noise";
+    }
+    case "binaural": {
+      const p = matchBinauralPreset(a.binaural);
+      return p ? `Binaural · ${BINAURAL_PRESET_SEEDS[p].label}` : "Binaural · Custom";
+    }
     case "media":
-      return "Media URL";
+      return a.media.kind === "youtube"
+        ? "YouTube"
+        : a.media.kind === "podcast"
+          ? "Podcast"
+          : "Media URL";
   }
 };
 
@@ -78,7 +85,7 @@ export function RunScreen({
 }: {
   blocks: Block[];
   cfg: SessionConfig;
-  audio: AudioConfig;
+  audio: AudioSettings;
   engine: AudioEngine;
   status: TimerStatus;
   index: number;
@@ -99,15 +106,44 @@ export function RunScreen({
   const block = currentBlock;
   const progress = block ? 1 - remaining / block.duration : 0;
   const onBreak = block ? isBreak(block.type) : false;
-  const audioActive =
-    status === "running" &&
-    audio.source !== "none" &&
-    !(audio.pauseOnBreak && onBreak);
+  const running = status === "running" && audio.category !== "none";
+  const muted = audio.pauseOnBreak && onBreak;
+  const audioActive = running && !muted;
 
   const done = status === "done";
 
+  // Keyboard transport: space = pause/resume, n = skip.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))
+        return;
+      if (done) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (status === "running") onPause();
+        else if (status === "paused") onResume();
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        onSkip();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [status, done, onPause, onResume, onSkip]);
+
+  // Announce the current phase to screen readers (changes only at boundaries).
+  const announcement = done
+    ? "Session complete"
+    : block
+      ? `${block.label}, ${humanDuration(block.duration)}`
+      : "";
+
   return (
     <div className="flex flex-col gap-4">
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
       <Display
         block={block}
         remaining={remaining}
@@ -158,7 +194,7 @@ export function RunScreen({
       </section>
 
       {/* now playing */}
-      {audio.source !== "none" && !done && (
+      {audio.category !== "none" && !done && (
         <section className="neu-flat flex items-center gap-3 px-5 py-4">
           <span
             className={`h-2.5 w-2.5 rounded-full ${audioActive ? "pulsing" : ""}`}
@@ -175,7 +211,7 @@ export function RunScreen({
         </section>
       )}
 
-      <AudioController engine={engine} cfg={audio} active={audioActive} />
+      <AudioController engine={engine} cfg={audio} running={running} muted={muted} />
 
       <section className="neu-raised p-5">
         <SchedulePreview blocks={blocks} start={start} activeIndex={index} />

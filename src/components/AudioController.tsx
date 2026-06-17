@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { AudioEngine } from "../lib/audio";
-import { BINAURAL_PRESETS } from "../lib/audio";
 import { youtubeId } from "../lib/format";
-import type { AudioConfig } from "../types";
+import type { AudioSettings } from "../types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -29,49 +28,93 @@ function loadYouTubeApi(): Promise<void> {
   return ytApiPromise;
 }
 
-const GENERATED = ["white", "pink", "brown", "binaural"];
-
 export function AudioController({
   engine,
   cfg,
-  active,
+  running,
+  muted,
 }: {
   engine: AudioEngine;
-  cfg: AudioConfig;
-  active: boolean;
+  cfg: AudioSettings;
+  /** The run is playing (status === running) — synthesised tones stay alive. */
+  running: boolean;
+  /** Current block mutes audio (a break with pauseOnBreak) — crossfade out. */
+  muted: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const ytHostRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
 
-  const isYouTube = cfg.source === "youtube";
-  const isMedia = cfg.source === "podcast" || cfg.source === "media";
-  const vid = isYouTube ? youtubeId(cfg.url) : null;
+  // Media (YouTube / <audio>) can't crossfade — they just play when audible.
+  const active = running && !muted;
+
+  const isYouTube = cfg.category === "media" && cfg.media.kind === "youtube";
+  const isMedia =
+    cfg.category === "media" &&
+    (cfg.media.kind === "podcast" || cfg.media.kind === "url");
+  const vid = isYouTube ? youtubeId(cfg.media.url) : null;
+
+  // Latest designs, read by the start/stop effect without re-triggering it.
+  const noiseRef = useRef(cfg.noise);
+  noiseRef.current = cfg.noise;
+  const binauralRef = useRef(cfg.binaural);
+  binauralRef.current = cfg.binaural;
+  const n = cfg.noise;
+  // Serialized binaural design — drives the live-reschedule effect.
+  const binauralKey = JSON.stringify(cfg.binaural);
 
   // Master volume for generated tones.
   useEffect(() => {
     engine.setVolume(cfg.volume);
   }, [cfg.volume, engine]);
 
-  // Generated tones (noise / binaural).
+  // Start / stop generated tones on category or run state. The tone stays
+  // alive across breaks; the break "mute" is a crossfade (see the duck effect).
   useEffect(() => {
-    if (!GENERATED.includes(cfg.source)) {
+    const generated = cfg.category === "noise" || cfg.category === "binaural";
+    if (!generated) {
       engine.stopTone();
       return;
     }
-    if (active) {
+    if (running) {
       engine.resume();
-      if (cfg.source === "binaural") {
-        const p = BINAURAL_PRESETS[cfg.preset];
-        engine.playBinaural(p.base, p.beat);
-      } else {
-        engine.playNoise(cfg.source as "white" | "pink" | "brown");
-      }
+      if (cfg.category === "binaural") engine.playBinauralTrack(binauralRef.current);
+      else engine.playNoiseBlend(noiseRef.current);
     } else {
       engine.stopTone();
     }
     return () => engine.stopTone();
-  }, [cfg.source, cfg.preset, active, engine]);
+  }, [cfg.category, running, engine]);
+
+  // Crossfade generated tones in/out as breaks mute audio.
+  useEffect(() => {
+    if (cfg.category === "noise" || cfg.category === "binaural") {
+      engine.duck(muted);
+    }
+  }, [cfg.category, muted, running, engine]);
+
+  // Live noise-blend updates (X/Y pad, filter, volume) — no restart/click.
+  useEffect(() => {
+    if (cfg.category === "noise" && running) engine.playNoiseBlend(n);
+  }, [
+    cfg.category,
+    running,
+    engine,
+    n,
+    n.blend.x,
+    n.blend.y,
+    n.lowpass.enabled,
+    n.lowpass.cutoff,
+    n.lowpass.q,
+    n.volume,
+  ]);
+
+  // Live binaural reschedule when the track is edited — no restart/click.
+  useEffect(() => {
+    if (cfg.category === "binaural" && running) {
+      engine.playBinauralTrack(binauralRef.current);
+    }
+  }, [cfg.category, running, engine, binauralKey]);
 
   // HTML media element (podcast / media URL).
   useEffect(() => {
@@ -85,7 +128,7 @@ export function AudioController({
     if (!el || !isMedia) return;
     if (active) el.play().catch(() => {});
     else el.pause();
-  }, [active, isMedia, cfg.url]);
+  }, [active, isMedia, cfg.media.url]);
 
   // YouTube player.
   useEffect(() => {
@@ -142,8 +185,8 @@ export function AudioController({
           <div ref={ytHostRef} className="h-full w-full" />
         </div>
       )}
-      {isMedia && cfg.url && (
-        <audio ref={audioRef} src={cfg.url} preload="none" className="hidden" />
+      {isMedia && cfg.media.url && (
+        <audio ref={audioRef} src={cfg.media.url} preload="none" className="hidden" />
       )}
     </div>
   );

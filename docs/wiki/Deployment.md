@@ -4,7 +4,7 @@ Static SPA. `pnpm run build` runs `tsc -b && vite build` and emits `dist/` (`ind
 
 ## Build gate
 
-`pnpm run build` **must pass** before any handoff — it type-checks (strict) and bundles. Current output is ~70 kB gzipped JS + ~4.5 kB gzipped CSS.
+`pnpm run build` **must pass** before any handoff — it type-checks (strict) and bundles. Current output is ~71 kB gzipped JS + ~4.6 kB gzipped CSS. `pnpm test` runs the Vitest unit suite (pure logic: schedule, format, migration); test files are excluded from the build and ship nothing.
 
 ## Vercel
 
@@ -16,11 +16,11 @@ Static SPA. `pnpm run build` runs `tsc -b && vite build` and emits `dist/` (`ind
 
 ## Netlify
 
-No config file needed — Netlify auto-detects Vite and uses `npm run build` / output `dist`. The README button points at `https://app.netlify.com/start/deploy?repository=…`. Replace `kaziridwan/flow-1` with the real repo.
+No config file needed — Netlify auto-detects Vite and uses `pnpm run build` / output `dist`. The README button points at `https://app.netlify.com/start/deploy?repository=…`. Replace `kaziridwan/flow-1` with the real repo.
 
 ## Render
 
-No config file needed — Render's Static Site type auto-detects `npm run build` and serves `dist`. The README button points at `https://render.com/deploy?repo=…`. Replace `kaziridwan/flow-1` with the real repo.
+No config file needed — Render's Static Site type auto-detects `pnpm run build` and serves `dist`. The README button points at `https://render.com/deploy?repo=…`. Replace `kaziridwan/flow-1` with the real repo.
 
 ## Runtime dependencies on the network
 
@@ -36,6 +36,7 @@ All synthesised audio (noise, binaural, bell) is local. If you ever need a fully
 | File | Purpose |
 |---|---|
 | `vite.config.ts` | `react()` + `tailwindcss()` plugins |
+| `vitest.config.ts` | Vitest unit-test config (node env, `src/**/*.test.ts`) |
 | `vercel.json` | Vercel framework + SPA rewrite |
 | `wrangler.toml` | Cloudflare Pages output dir |
 | `tsconfig*.json` | strict TS, project references (`app` + `node`) |

@@ -28,33 +28,35 @@ Each meal can be toggled and given a duration. A meal is inserted into the timel
 
 Meal duration adjustable 10–90 min (step 5). Windows are fixed in `MEAL_WINDOWS` (`src/lib/schedule.ts`).
 
+Setup section order is **01 Session · 02 Sound · 03 Meal breaks · 04 Preview**. The **Meal breaks** and **Preview** (timeline / clock times / projected end) cards are collapsible and **collapsed by default** — tap the header to expand.
+
 ## Background sound
 
-Selectable source (default **binaural / Flow**, volume 60%, "mute during breaks" on):
+Chosen from **four categories** (default **Binaural / Flow**, volume 60%, "mute during breaks" on):
 
-| Source | How it plays |
+| Category | What it offers |
 |---|---|
 | Silent | nothing |
-| White / Pink / Brown noise | synthesised live via Web Audio API |
-| Binaural beats | two-oscillator stereo, presets below |
-| YouTube | YouTube IFrame API player (visible) |
-| Podcast URL | hidden `<audio>` element — **direct media URL** |
-| Media URL | hidden `<audio>` element |
+| **Noise** | a noise color — White / Pink / Brown / Blue — synthesised live via Web Audio API. ⋯ opens the **Noise Designer**: an X/Y pad blending all four colors, a low-pass filter (cutoff + resonance), a noise volume, and a **Preview** play/stop button that plays the design live as you tweak it. |
+| **Binaural** | two-oscillator stereo beats; presets below. ⋯ opens the **Binaural Engine**: a track length plus keyframes (time, base carrier, beat offset, volume) that glide between values and loop. |
+| **Custom Media** | sub-tabs: **YouTube** (visible IFrame player), **Podcast** (hidden `<audio>`, direct media URL), **Media URL** (hidden `<audio>`). |
 
-**Binaural presets** (`src/lib/audio.ts`): Flow 180 Hz / 10 Hz beat (alpha) · Deep focus 210 Hz / 16 Hz (beta) · Calm 150 Hz / 6 Hz (theta). Needs stereo headphones.
+**Binaural presets** (`src/lib/audioDesign.ts`): Flow 180 Hz / 10 Hz beat (alpha) · Deep focus 210 Hz / 16 Hz (beta) · Calm 150 Hz / 6 Hz (theta). Needs stereo headphones.
 
-Audio is active when: `status === running && source ≠ none && !(pauseOnBreak && currentBlock is a break)`. It starts on the **Start** press (browsers require a user gesture).
+Audio is active when: `status === running && category ≠ none && !(pauseOnBreak && currentBlock is a break)`. It starts on the **Start** press (browsers require a user gesture).
+
 
 ## Run mode
 
 - LCD shows mm:ss, current mode (color-coded), a within-block progress bar, and one LED dot per focus session.
-- Transport: **Stop** (back to Patch), **Pause/Resume**, **Skip phase**.
-- "Now playing" strip shows the active source and on/break/idle state.
+- Transport: **Stop** (back to Patch), **Pause/Resume**, **Skip phase**. Keyboard: **Space** = pause/resume, **n** = skip.
+- Phase changes are announced to screen readers via an `aria-live` region.
+- "Now playing" strip shows the active source and on/break/idle state. On a break with "mute during breaks" on, synthesised audio **crossfades** out and back (no gap).
 - On completion: a "Session complete" panel with **Restart** (same plan, fresh start time) and **New session**.
 
 ## Persistence
 
-`cfg` and `audio` are saved to `localStorage` and restored on load (shallow-merged over defaults). An in-progress **run** is not yet persisted across reloads (see Roadmap).
+`cfg` and `audio` are saved to `localStorage` and restored on load — `cfg` shallow-merged over defaults, `audio` normalised through a versioned `migrateAudio()` (ADR-9). An in-progress **run** is also persisted (`localStorage["flow.run"]`) and restored on reload, fast-forwarded to the current time (ADR-13); it auto-resumes (audio resumes on the next user gesture).
 
 ## Mode colors (`src/lib/modes.ts`)
 

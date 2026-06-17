@@ -1,15 +1,15 @@
-import type { BinauralPreset } from "../types";
+import { NOISE_COLORS, cornerWeights } from "./audioDesign";
+import type { BinauralDesign, NoiseColor, NoiseDesign } from "../types";
 
-export const BINAURAL_PRESETS: Record<
-  BinauralPreset,
-  { base: number; beat: number; label: string; note: string }
-> = {
-  flow: { base: 180, beat: 10, label: "Flow", note: "10 Hz alpha" },
-  focus: { base: 210, beat: 16, label: "Deep focus", note: "16 Hz beta" },
-  calm: { base: 150, beat: 6, label: "Calm", note: "6 Hz theta" },
-};
+type NoiseKind = NoiseColor;
 
-type NoiseKind = "white" | "pink" | "brown";
+/** Combined peak level of the noise blend before the noise design volume and
+ *  master gain are applied (bilinear corner weights sum to 1). */
+const NOISE_LEVEL = 0.3;
+/** Filter frequency used when the low-pass is disabled (effectively bypassed). */
+const FILTER_OPEN_HZ = 20000;
+/** Peak binaural gain before the per-keyframe volume and master gain. */
+const BINAURAL_LEVEL = 0.16;
 
 /**
  * A small Web Audio engine. Generates the transition bell, looping noise and
@@ -18,6 +18,23 @@ type NoiseKind = "white" | "pink" | "brown";
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  /** Live noise-blend graph, kept so the X/Y pad can update it without
+   *  rebuilding (and clicking). Null when noise isn't playing. */
+  private noise: {
+    gains: Record<NoiseColor, GainNode>;
+    filter: BiquadFilterNode;
+    out: GainNode;
+  } | null = null;
+  /** Per-tone fade gain (out → fade → master) for crossfading on breaks. */
+  private fade: GainNode | null = null;
+  /** Live binaural-track graph + the loop timer that re-anchors the keyframe
+   *  schedule each pass. Null when binaural isn't playing. */
+  private binaural: {
+    left: OscillatorNode;
+    right: OscillatorNode;
+    gain: GainNode;
+    loopId: ReturnType<typeof setInterval> | null;
+  } | null = null;
   private tone: {
     nodes: AudioNode[];
     stop: () => void;
@@ -89,56 +106,168 @@ export class AudioEngine {
         data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.11;
         b6 = w * 0.115926;
       }
-    } else {
+    } else if (kind === "brown") {
       let last = 0;
       for (let i = 0; i < length; i++) {
         const w = Math.random() * 2 - 1;
         last = (last + 0.02 * w) / 1.02;
         data[i] = last * 3.5;
       }
+    } else {
+      // Blue: differentiated white noise (+6 dB/oct tilt, bright/airy).
+      let lastW = 0;
+      for (let i = 0; i < length; i++) {
+        const w = Math.random() * 2 - 1;
+        data[i] = (w - lastW) * 0.5;
+        lastW = w;
+      }
     }
     return buffer;
   }
 
-  playNoise(kind: NoiseKind) {
-    this.stopTone();
+  /**
+   * Play (or, if already running, smoothly update) a blend of all four noise
+   * colors through a shared low-pass filter. The four looping sources run
+   * simultaneously; the X/Y pad only changes their gains, so dragging never
+   * restarts/clicks.
+   */
+  playNoiseBlend(design: NoiseDesign) {
+    if (this.noise) {
+      this.applyNoiseDesign(design);
+      return;
+    }
     const ctx = this.ensure();
-    const src = ctx.createBufferSource();
-    src.buffer = this.buildNoiseBuffer(kind);
-    src.loop = true;
-    const g = ctx.createGain();
-    g.gain.value = 0.22;
-    src.connect(g).connect(this.master!);
-    src.start();
-    this.tone = { nodes: [src, g], stop: () => src.stop() };
+    const fade = this.newFade();
+    const out = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.connect(out).connect(fade);
+
+    const gains = {} as Record<NoiseColor, GainNode>;
+    const sources: AudioBufferSourceNode[] = [];
+    for (const color of NOISE_COLORS) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.buildNoiseBuffer(color);
+      src.loop = true;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      src.connect(g).connect(filter);
+      src.start();
+      gains[color] = g;
+      sources.push(src);
+    }
+
+    this.noise = { gains, filter, out };
+    this.applyNoiseDesign(design);
+    this.tone = {
+      nodes: [...sources, ...Object.values(gains), filter, out, fade],
+      stop: () => sources.forEach((s) => s.stop()),
+    };
   }
 
-  playBinaural(base: number, beat: number) {
-    this.stopTone();
+  /** Create the fade gain that sits between a tone and the master. */
+  private newFade(): GainNode {
     const ctx = this.ensure();
-    const merger = ctx.createChannelMerger(2);
-    const g = ctx.createGain();
-    g.gain.value = 0.16;
+    const fade = ctx.createGain();
+    fade.gain.value = 1;
+    fade.connect(this.master!);
+    this.fade = fade;
+    return fade;
+  }
 
+  /** Crossfade the current tone in/out (e.g. when a break mutes audio). */
+  duck(muted: boolean) {
+    if (!this.fade || !this.ctx) return;
+    this.fade.gain.setTargetAtTime(muted ? 0 : 1, this.ctx.currentTime, 0.25);
+  }
+
+  private applyNoiseDesign(design: NoiseDesign) {
+    if (!this.noise || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const w = cornerWeights(design.blend.x, design.blend.y);
+    for (const color of NOISE_COLORS) {
+      this.noise.gains[color].gain.setTargetAtTime(w[color] * NOISE_LEVEL, t, 0.05);
+    }
+    this.noise.out.gain.setTargetAtTime(design.volume, t, 0.05);
+    this.noise.filter.Q.setTargetAtTime(design.lowpass.q, t, 0.05);
+    this.noise.filter.frequency.setTargetAtTime(
+      design.lowpass.enabled ? design.lowpass.cutoff : FILTER_OPEN_HZ,
+      t,
+      0.05,
+    );
+  }
+
+  /**
+   * Play (or, if already running, smoothly reschedule) a keyframed binaural
+   * track: left = base, right = base+beat, both interpolated between keyframes,
+   * with the track looping over `durationSec`. Editing the track while it plays
+   * reschedules the automation without restarting the oscillators (no click).
+   */
+  playBinauralTrack(design: BinauralDesign) {
+    if (this.binaural) {
+      this.scheduleBinaural(design);
+      this.resetBinauralLoop(design);
+      return;
+    }
+    const ctx = this.ensure();
+    const fade = this.newFade();
+    const merger = ctx.createChannelMerger(2);
+    const gain = ctx.createGain();
     const left = ctx.createOscillator();
     left.type = "sine";
-    left.frequency.value = base;
     const right = ctx.createOscillator();
     right.type = "sine";
-    right.frequency.value = base + beat;
 
     left.connect(merger, 0, 0);
     right.connect(merger, 0, 1);
-    merger.connect(g).connect(this.master!);
+    merger.connect(gain).connect(fade);
+
+    this.binaural = { left, right, gain, loopId: null };
+    this.scheduleBinaural(design);
+    this.resetBinauralLoop(design);
     left.start();
     right.start();
+
     this.tone = {
-      nodes: [left, right, merger, g],
+      nodes: [left, right, merger, gain, fade],
       stop: () => {
+        if (this.binaural?.loopId) clearInterval(this.binaural.loopId);
         left.stop();
         right.stop();
       },
     };
+  }
+
+  /** Lay keyframe automation onto the oscillators/gain from `currentTime`. */
+  private scheduleBinaural(design: BinauralDesign) {
+    if (!this.binaural || !this.ctx) return;
+    const { left, right, gain } = this.binaural;
+    const t0 = this.ctx.currentTime;
+    const kfs = design.keyframes.length
+      ? design.keyframes
+      : [{ t: 0, base: 180, beat: 10, volume: 0.8 }];
+
+    for (const p of [left.frequency, right.frequency, gain.gain]) {
+      p.cancelScheduledValues(t0);
+    }
+    const first = kfs[0];
+    left.frequency.setValueAtTime(first.base, t0);
+    right.frequency.setValueAtTime(first.base + first.beat, t0);
+    gain.gain.setValueAtTime(Math.max(0.0001, first.volume * BINAURAL_LEVEL), t0);
+
+    for (const k of kfs) {
+      const at = t0 + Math.max(0, k.t);
+      left.frequency.linearRampToValueAtTime(k.base, at);
+      right.frequency.linearRampToValueAtTime(k.base + k.beat, at);
+      gain.gain.linearRampToValueAtTime(Math.max(0.0001, k.volume * BINAURAL_LEVEL), at);
+    }
+  }
+
+  private resetBinauralLoop(design: BinauralDesign) {
+    if (!this.binaural) return;
+    if (this.binaural.loopId) clearInterval(this.binaural.loopId);
+    const period = Math.max(1, design.durationSec) * 1000;
+    this.binaural.loopId = setInterval(() => this.scheduleBinaural(design), period);
   }
 
   stopTone() {
@@ -151,6 +280,9 @@ export class AudioEngine {
       this.tone.nodes.forEach((n) => n.disconnect());
       this.tone = null;
     }
+    this.noise = null;
+    this.binaural = null;
+    this.fade = null;
   }
 
   dispose() {
