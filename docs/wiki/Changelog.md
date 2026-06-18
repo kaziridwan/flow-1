@@ -4,6 +4,11 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-18 · Lock background scroll while a modal is open
+**What:** Opening a designer `Sheet` now locks `document.body` scroll (ref-counted, with scrollbar-width padding compensation to avoid a layout shift) and the panel gets `overscroll-contain`. Scrolling over the modal backdrop or panel whitespace no longer scrolls the page behind it.
+**Why:** Scroll chaining — the `fixed inset-0` overlay didn't block wheel/trackpad scroll from reaching the body.
+**Files:** `src/components/Sheet.tsx`.
+
 ## 2026-06-18 · v0.4.0: binaural timing functions, value locking, built-in presets
 **What:** (1) **Timing functions** — each keyframe carries a CSS-style `transition` (linear/ease/ease-in/ease-out/step-start/step-end or a validated `cubic-bezier(...)`) governing the glide to the next keyframe; default linear. New `src/lib/easing.ts` (parse/validate + eased progress + cubic-bezier solver + curve sampling). The engine samples eased segments into short ramps (steps → jumps), `interpolateBinaural` and the sparkline are ease-aware, and the editor shows a per-keyframe dropdown + custom bezier input + curve preview. (2) **Value locking** — keyframes expose **Left / Right / Diff** (right = left + diff), all editable; the Left>Right>Diff precedence decides what recomputes, and locking a field holds it (`resolveFreqEdit`, unit-tested). (3) **Built-in presets** — "20 Minute Power Nap" and "25 Minute Study" keyframed tracks, applied (apply-only) from the Binaural Engine. Version bumped to 0.4.0.
 **Why:** v0.4.0 — richer, more musical binaural design (eased glides, precise ear/offset control, ready-made tracks).

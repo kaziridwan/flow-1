@@ -1,6 +1,28 @@
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 
+// Body scroll lock, ref-counted so overlapping sheets only unlock on the last
+// close. Restores whatever inline overflow/padding the body had before.
+let lockCount = 0;
+let prevOverflow = "";
+let prevPaddingRight = "";
+
+function lockBodyScroll() {
+  if (lockCount++ > 0) return;
+  const scrollbar = window.innerWidth - document.documentElement.clientWidth;
+  prevOverflow = document.body.style.overflow;
+  prevPaddingRight = document.body.style.paddingRight;
+  document.body.style.overflow = "hidden";
+  // Compensate for the now-hidden scrollbar so the page doesn't shift right.
+  if (scrollbar > 0) document.body.style.paddingRight = `${scrollbar}px`;
+}
+
+function unlockBodyScroll() {
+  if (lockCount === 0 || --lockCount > 0) return;
+  document.body.style.overflow = prevOverflow;
+  document.body.style.paddingRight = prevPaddingRight;
+}
+
 /**
  * A lightweight modal sheet for the sound designers. Quiet neumorphic surface
  * (preserves the "one bold element" rule), with backdrop dismiss, Escape to
@@ -39,6 +61,14 @@ export function Sheet({
     )?.focus();
   }, [open]);
 
+  // Lock the page behind the modal so scrolling over the backdrop/panel doesn't
+  // chain through to the main page.
+  useEffect(() => {
+    if (!open) return;
+    lockBodyScroll();
+    return unlockBodyScroll;
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -53,7 +83,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="neu-raised w-full max-w-md max-h-[88dvh] overflow-y-auto rounded-3xl p-5"
+        className="neu-raised w-full max-w-md max-h-[88dvh] overflow-y-auto overscroll-contain rounded-3xl p-5"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-mono text-sm font-extrabold uppercase tracking-[0.12em] text-ink">
