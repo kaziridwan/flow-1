@@ -4,6 +4,11 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-18 · Binaural keyframe list: auto-scroll on add + zebra striping
+**What:** Adding a keyframe now smooth-scrolls the ⋯ sheet down to the Frequency guide (bringing the full keyframe list + controls into view), and alternate keyframe cards get a slightly darker gradient to make adjacent keyframes easy to tell apart.
+**Why:** Quality-of-life on the Binaural Engine editor — less manual scrolling, clearer row separation.
+**Files:** `src/components/BinauralEngine.tsx`.
+
 ## 2026-06-18 · Separate break sound + Binaural Engine polish
 **What:** (1) **Separate background sound for breaks** — with "mute during breaks" off, a "Different sound for breaks" toggle reveals a full sound picker; that sound plays during breaks and the focus sound resumes after. Extracted a `SoundConfig` (the playable part: category + designs + volume), refactored `AudioPicker` into a reusable `SoundPicker`, and `AudioController` now takes the **effective** `SoundConfig` chosen by `RunScreen` (focus, or break sound on a break). (2) **Binaural Engine fixes:** the ⋯ sheet no longer **scrolls to top** when editing/adding a keyframe (Sheet re-focused on every parent render — now focuses only on open); a **Frequency guide** (Delta→Gamma band table, per the reference) plus a per-keyframe band chip; and the HH:MM:SS time input now **selects-all on focus**, accepts `H:MM:SS`/`MM:SS`/seconds, and clamps instead of silently reverting.
 **Why:** 0.2 follow-ups — break music was tied to the focus sound, the keyframe editor lost your scroll position, users had no cue what brainwave band a beat targets, and time entry was fiddly.

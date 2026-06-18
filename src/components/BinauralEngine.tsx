@@ -50,6 +50,11 @@ export function BinauralEngine({
 
   const removeKf = (i: number) => commit(kfs.filter((_, j) => j !== i));
 
+  // After adding a keyframe, scroll the bottom of the sheet (the Frequency
+  // guide) into view so the freshly added card + controls stay in sight.
+  const guideRef = useRef<HTMLDivElement>(null);
+  const scrollOnAddRef = useRef(false);
+
   const addKf = () => {
     // Insert at the largest time gap, with interpolated values.
     let at = design.durationSec / 2;
@@ -61,8 +66,15 @@ export function BinauralEngine({
         at = (kfs[i].t + kfs[i + 1].t) / 2;
       }
     }
+    scrollOnAddRef.current = true;
     commit([...kfs, { t: Math.round(at), ...interpolateBinaural(design, at) }]);
   };
+
+  useEffect(() => {
+    if (!scrollOnAddRef.current) return;
+    scrollOnAddRef.current = false;
+    guideRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [kfs.length]);
 
   const setDuration = (durationSec: number) => {
     // Keep the endpoints pinned (first=0, last=length) and middle keyframes in
@@ -235,7 +247,17 @@ export function BinauralEngine({
         {kfs.map((k, i) => {
           const locked = i === 0 || i === lastIdx;
           return (
-            <div key={i} className="neu-inset flex flex-col gap-2 px-3 py-2">
+            <div
+              key={i}
+              className="neu-inset flex flex-col gap-2 px-3 py-2"
+              // Zebra-stripe alternate cards (darker gradient) so adjacent
+              // keyframes are easy to tell apart at a glance.
+              style={
+                i % 2 === 1
+                  ? { background: "linear-gradient(145deg, #d3cfc6, #e1ddd5)" }
+                  : undefined
+              }
+            >
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-muted">
                   @ {hms(k.t)}
@@ -307,7 +329,9 @@ export function BinauralEngine({
         {` ${humanDuration(design.durationSec)}`}. Use stereo headphones.
       </p>
 
-      <FrequencyGuide />
+      <div ref={guideRef}>
+        <FrequencyGuide />
+      </div>
     </div>
   );
 }
