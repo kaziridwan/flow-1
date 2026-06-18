@@ -47,7 +47,7 @@ export function SetupScreen({
         <div className="mb-3 flex items-center justify-between">
           <Eyebrow>01 · Session</Eyebrow>
           <span className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-muted">
-            Patch
+            Sequence
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3">
