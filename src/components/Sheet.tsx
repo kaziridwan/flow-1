@@ -26,12 +26,18 @@ export function Sheet({
       if (e.key === "Tab") trapTab(e, panelRef.current);
     };
     document.addEventListener("keydown", onKey);
-    // Move focus into the panel.
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  // Move focus into the panel only when it opens — keyed on `open` alone so a
+  // parent re-render (e.g. editing a keyframe) doesn't refocus and scroll the
+  // panel back to the top.
+  useEffect(() => {
+    if (!open) return;
     panelRef.current?.querySelector<HTMLElement>(
       "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
     )?.focus();
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

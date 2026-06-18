@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { AudioEngine } from "../lib/audio";
 import { youtubeId } from "../lib/format";
-import type { AudioSettings } from "../types";
+import type { SoundConfig } from "../types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -30,12 +30,14 @@ function loadYouTubeApi(): Promise<void> {
 
 export function AudioController({
   engine,
-  cfg,
+  sound,
   running,
   muted,
 }: {
   engine: AudioEngine;
-  cfg: AudioSettings;
+  /** The sound to play right now — the focus sound, or the break sound while a
+   *  break is active and a separate one is configured (chosen by RunScreen). */
+  sound: SoundConfig;
   /** The run is playing (status === running) — synthesised tones stay alive. */
   running: boolean;
   /** Current block mutes audio (a break with pauseOnBreak) — crossfade out. */
@@ -48,56 +50,59 @@ export function AudioController({
   // Media (YouTube / <audio>) can't crossfade — they just play when audible.
   const active = running && !muted;
 
-  const isYouTube = cfg.category === "media" && cfg.media.kind === "youtube";
+  const isYouTube = sound.category === "media" && sound.media.kind === "youtube";
   const isMedia =
-    cfg.category === "media" &&
-    (cfg.media.kind === "podcast" || cfg.media.kind === "url");
-  const vid = isYouTube ? youtubeId(cfg.media.url) : null;
+    sound.category === "media" &&
+    (sound.media.kind === "podcast" || sound.media.kind === "url");
+  const vid = isYouTube ? youtubeId(sound.media.url) : null;
 
   // Latest designs, read by the start/stop effect without re-triggering it.
-  const noiseRef = useRef(cfg.noise);
-  noiseRef.current = cfg.noise;
-  const binauralRef = useRef(cfg.binaural);
-  binauralRef.current = cfg.binaural;
-  const n = cfg.noise;
+  const noiseRef = useRef(sound.noise);
+  noiseRef.current = sound.noise;
+  const binauralRef = useRef(sound.binaural);
+  binauralRef.current = sound.binaural;
+  const n = sound.noise;
   // Serialized binaural design — drives the live-reschedule effect.
-  const binauralKey = JSON.stringify(cfg.binaural);
+  const binauralKey = JSON.stringify(sound.binaural);
 
   // Master volume for generated tones.
   useEffect(() => {
-    engine.setVolume(cfg.volume);
-  }, [cfg.volume, engine]);
+    engine.setVolume(sound.volume);
+  }, [sound.volume, engine]);
 
   // Start / stop generated tones on category or run state. The tone stays
   // alive across breaks; the break "mute" is a crossfade (see the duck effect).
+  // When the effective sound swaps between two same-category sounds (focus ⇄
+  // break), category doesn't change here — the live effects below morph instead.
   useEffect(() => {
-    const generated = cfg.category === "noise" || cfg.category === "binaural";
+    const generated = sound.category === "noise" || sound.category === "binaural";
     if (!generated) {
       engine.stopTone();
       return;
     }
     if (running) {
       engine.resume();
-      if (cfg.category === "binaural") engine.playBinauralTrack(binauralRef.current);
+      if (sound.category === "binaural") engine.playBinauralTrack(binauralRef.current);
       else engine.playNoiseBlend(noiseRef.current);
     } else {
       engine.stopTone();
     }
     return () => engine.stopTone();
-  }, [cfg.category, running, engine]);
+  }, [sound.category, running, engine]);
 
   // Crossfade generated tones in/out as breaks mute audio.
   useEffect(() => {
-    if (cfg.category === "noise" || cfg.category === "binaural") {
+    if (sound.category === "noise" || sound.category === "binaural") {
       engine.duck(muted);
     }
-  }, [cfg.category, muted, running, engine]);
+  }, [sound.category, muted, running, engine]);
 
-  // Live noise-blend updates (X/Y pad, filter, volume) — no restart/click.
+  // Live noise-blend updates (X/Y pad, filter, volume, focus⇄break swap) —
+  // no restart/click.
   useEffect(() => {
-    if (cfg.category === "noise" && running) engine.playNoiseBlend(n);
+    if (sound.category === "noise" && running) engine.playNoiseBlend(n);
   }, [
-    cfg.category,
+    sound.category,
     running,
     engine,
     n,
@@ -109,26 +114,26 @@ export function AudioController({
     n.volume,
   ]);
 
-  // Live binaural reschedule when the track is edited — no restart/click.
+  // Live binaural reschedule on edit or focus⇄break swap — no restart/click.
   useEffect(() => {
-    if (cfg.category === "binaural" && running) {
+    if (sound.category === "binaural" && running) {
       engine.playBinauralTrack(binauralRef.current);
     }
-  }, [cfg.category, running, engine, binauralKey]);
+  }, [sound.category, running, engine, binauralKey]);
 
   // HTML media element (podcast / media URL).
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !isMedia) return;
-    el.volume = cfg.volume;
-  }, [cfg.volume, isMedia]);
+    el.volume = sound.volume;
+  }, [sound.volume, isMedia]);
 
   useEffect(() => {
     const el = audioRef.current;
     if (!el || !isMedia) return;
     if (active) el.play().catch(() => {});
     else el.pause();
-  }, [active, isMedia, cfg.media.url]);
+  }, [active, isMedia, sound.media.url]);
 
   // YouTube player.
   useEffect(() => {
@@ -155,7 +160,7 @@ export function AudioController({
         playerVars: { autoplay: 0, controls: 1, playsinline: 1, rel: 0 },
         events: {
           onReady: (e: any) => {
-            e.target.setVolume(Math.round(cfg.volume * 100));
+            e.target.setVolume(Math.round(sound.volume * 100));
             if (active) e.target.playVideo();
           },
         },
@@ -175,8 +180,8 @@ export function AudioController({
 
   useEffect(() => {
     const p = playerRef.current;
-    if (p?.setVolume) p.setVolume(Math.round(cfg.volume * 100));
-  }, [cfg.volume]);
+    if (p?.setVolume) p.setVolume(Math.round(sound.volume * 100));
+  }, [sound.volume]);
 
   return (
     <div className={isYouTube && vid ? "neu-inset overflow-hidden p-2" : ""}>
@@ -185,8 +190,8 @@ export function AudioController({
           <div ref={ytHostRef} className="h-full w-full" />
         </div>
       )}
-      {isMedia && cfg.media.url && (
-        <audio ref={audioRef} src={cfg.media.url} preload="none" className="hidden" />
+      {isMedia && sound.media.url && (
+        <audio ref={audioRef} src={sound.media.url} preload="none" className="hidden" />
       )}
     </div>
   );

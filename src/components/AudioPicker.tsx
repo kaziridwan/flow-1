@@ -9,6 +9,7 @@ import {
   defaultBinauralDesign,
   defaultNoiseDesign,
   matchBinauralPreset,
+  soundOf,
 } from "../lib/audioDesign";
 import type {
   AudioCategory,
@@ -16,6 +17,7 @@ import type {
   BinauralPreset,
   MediaKind,
   NoiseColor,
+  SoundConfig,
 } from "../types";
 import { BinauralEngine } from "./BinauralEngine";
 import { Eyebrow, Segmented, Toggle } from "./controls";
@@ -55,35 +57,94 @@ export function AudioPicker({
   onChange: (next: AudioSettings) => void;
   engine: AudioEngine;
 }) {
-  const [sheet, setSheet] = useState<"noise" | "binaural" | null>(null);
   const set = (patch: Partial<AudioSettings>) => onChange({ ...cfg, ...patch });
 
-  const noiseColor = blendCornerColor(cfg.noise.blend);
-  const binauralPreset = matchBinauralPreset(cfg.binaural);
+  const hasFocusSound = cfg.category !== "none";
+  const breakSound = cfg.break;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <SoundPicker
+        sound={soundOf(cfg)}
+        onChange={(s) => set(s)}
+        engine={engine}
+        title="Background sound"
+      />
+
+      {hasFocusSound && (
+        <Toggle
+          label="Mute audio during breaks"
+          checked={cfg.pauseOnBreak}
+          onChange={(v) => set({ pauseOnBreak: v })}
+        />
+      )}
+
+      {hasFocusSound && !cfg.pauseOnBreak && (
+        <>
+          <Toggle
+            label="Different sound for breaks"
+            hint="Play a separate background sound during breaks"
+            checked={breakSound !== null}
+            onChange={(on) => set({ break: on ? soundOf(cfg) : null })}
+          />
+          {breakSound !== null && (
+            <div className="neu-inset flex flex-col gap-3 rounded-2xl p-3">
+              <SoundPicker
+                sound={breakSound}
+                onChange={(s) => set({ break: s })}
+                engine={engine}
+                title="Break sound"
+              />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Edits a single playable {@link SoundConfig}: category, its inline design +
+ *  ⋯ designer sheet, and its own volume. Reused for the focus and break sounds. */
+function SoundPicker({
+  sound,
+  onChange,
+  engine,
+  title,
+}: {
+  sound: SoundConfig;
+  onChange: (next: SoundConfig) => void;
+  engine: AudioEngine;
+  title: string;
+}) {
+  const [sheet, setSheet] = useState<"noise" | "binaural" | null>(null);
+  const set = (patch: Partial<SoundConfig>) => onChange({ ...sound, ...patch });
+
+  const noiseColor = blendCornerColor(sound.noise.blend);
+  const binauralPreset = matchBinauralPreset(sound.binaural);
 
   const setNoiseColor = (color: NoiseColor) =>
-    set({ noise: { ...cfg.noise, blend: { ...defaultNoiseDesign(color).blend } } });
+    set({ noise: { ...sound.noise, blend: { ...defaultNoiseDesign(color).blend } } });
 
   const setBinauralPreset = (p: BinauralPreset) => {
     const s = BINAURAL_PRESET_SEEDS[p];
-    set({ binaural: defaultBinauralDesign(s.base, s.beat, cfg.binaural.durationSec) });
+    set({ binaural: defaultBinauralDesign(s.base, s.beat, sound.binaural.durationSec) });
   };
 
   return (
     <div className="flex flex-col gap-3">
       <div>
         <div className="mb-2">
-          <Eyebrow>Background sound</Eyebrow>
+          <Eyebrow>{title}</Eyebrow>
         </div>
         <Segmented
           options={CATEGORIES}
-          value={cfg.category}
+          value={sound.category}
           onChange={(v) => set({ category: v })}
           columns={2}
         />
       </div>
 
-      {cfg.category === "noise" && (
+      {sound.category === "noise" && (
         <Card
           title={`Noise · ${noiseColor ? NOISE_CORNERS[noiseColor].label : "Custom blend"}`}
           onOpen={() => setSheet("noise")}
@@ -98,7 +159,7 @@ export function AudioPicker({
         </Card>
       )}
 
-      {cfg.category === "binaural" && (
+      {sound.category === "binaural" && (
         <Card
           title={`Binaural · ${
             binauralPreset ? BINAURAL_PRESET_SEEDS[binauralPreset].note : "Custom track"
@@ -119,29 +180,29 @@ export function AudioPicker({
         </Card>
       )}
 
-      {cfg.category === "media" && (
+      {sound.category === "media" && (
         <div className="neu-flat flex flex-col gap-3 px-4 py-3">
           <Segmented
             options={MEDIA_OPTIONS}
-            value={cfg.media.kind}
-            onChange={(kind) => set({ media: { ...cfg.media, kind } })}
+            value={sound.media.kind}
+            onChange={(kind) => set({ media: { ...sound.media, kind } })}
             columns={3}
           />
           <label className="neu-inset block px-4 py-3">
             <span className="tech-label">
-              {cfg.media.kind === "youtube"
+              {sound.media.kind === "youtube"
                 ? "YouTube link"
-                : cfg.media.kind === "podcast"
+                : sound.media.kind === "podcast"
                   ? "Podcast audio URL"
                   : "Media URL"}
             </span>
             <input
               type="url"
               inputMode="url"
-              value={cfg.media.url}
-              onChange={(e) => set({ media: { ...cfg.media, url: e.target.value } })}
+              value={sound.media.url}
+              onChange={(e) => set({ media: { ...sound.media, url: e.target.value } })}
               placeholder={
-                cfg.media.kind === "youtube"
+                sound.media.kind === "youtube"
                   ? "https://youtu.be/…"
                   : "https://…/audio.mp3"
               }
@@ -151,12 +212,12 @@ export function AudioPicker({
         </div>
       )}
 
-      {cfg.category !== "none" && (
+      {sound.category !== "none" && (
         <div className="neu-flat px-4 py-3">
           <div className="flex items-center justify-between">
             <Eyebrow>Volume</Eyebrow>
             <span className="font-mono text-xs font-bold text-muted">
-              {Math.round(cfg.volume * 100)}%
+              {Math.round(sound.volume * 100)}%
             </span>
           </div>
           <input
@@ -164,20 +225,12 @@ export function AudioPicker({
             min={0}
             max={1}
             step={0.01}
-            value={cfg.volume}
+            value={sound.volume}
             onChange={(e) => set({ volume: Number(e.target.value) })}
             className="mt-2 w-full accent-[var(--color-accent)]"
             aria-label="Volume"
           />
         </div>
-      )}
-
-      {cfg.category !== "none" && (
-        <Toggle
-          label="Mute audio during breaks"
-          checked={cfg.pauseOnBreak}
-          onChange={(v) => set({ pauseOnBreak: v })}
-        />
       )}
 
       <Sheet
@@ -186,10 +239,10 @@ export function AudioPicker({
         onClose={() => setSheet(null)}
       >
         <NoiseDesigner
-          design={cfg.noise}
+          design={sound.noise}
           onChange={(noise) => set({ noise })}
           engine={engine}
-          masterVolume={cfg.volume}
+          masterVolume={sound.volume}
         />
       </Sheet>
 
@@ -199,10 +252,10 @@ export function AudioPicker({
         onClose={() => setSheet(null)}
       >
         <BinauralEngine
-          design={cfg.binaural}
+          design={sound.binaural}
           onChange={(binaural) => set({ binaural })}
           engine={engine}
-          masterVolume={cfg.volume}
+          masterVolume={sound.volume}
         />
       </Sheet>
     </div>

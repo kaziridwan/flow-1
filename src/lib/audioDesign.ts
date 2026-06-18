@@ -4,6 +4,7 @@ import type {
   BinauralPreset,
   NoiseColor,
   NoiseDesign,
+  SoundConfig,
 } from "../types";
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
@@ -73,6 +74,32 @@ export function matchBinauralPreset(d: BinauralDesign): BinauralPreset | null {
   return null;
 }
 
+/** Brainwave bands the binaural *beat* (L/R offset, Hz) falls into, with the
+ *  mental state each is associated with. Ranges are [min, max) in Hz; the last
+ *  band is open-ended. Mirrors the in-app Frequency Guide. */
+export interface BinauralBand {
+  name: string;
+  min: number;
+  max: number;
+  state: string;
+}
+
+export const BINAURAL_BANDS: BinauralBand[] = [
+  { name: "Delta", min: 0, max: 4, state: "Deep sleep, healing & deep relaxation" },
+  { name: "Theta", min: 4, max: 8, state: "Meditation, light sleep & creativity" },
+  { name: "Alpha", min: 8, max: 14, state: "Relaxation, calm & reflective focus" },
+  { name: "Beta", min: 14, max: 30, state: "Alertness, active thinking & concentration" },
+  { name: "Gamma", min: 30, max: Infinity, state: "Flow state & heightened focus" },
+];
+
+/** Classify a beat frequency (Hz) into its brainwave band. */
+export function binauralBand(beatHz: number): BinauralBand {
+  return (
+    BINAURAL_BANDS.find((b) => beatHz >= b.min && beatHz < b.max) ??
+    BINAURAL_BANDS[BINAURAL_BANDS.length - 1]
+  );
+}
+
 const lerp = (a: number, b: number, f: number) => a + (b - a) * f;
 
 /** Linearly interpolate base/beat/volume at time `t` (seconds) along a track.
@@ -136,14 +163,34 @@ export function defaultBinauralDesign(
   };
 }
 
-export function defaultAudioSettings(): AudioSettings {
+/** A fresh, self-contained background sound (used to seed the break sound when
+ *  the user first enables a separate one). */
+export function defaultSoundConfig(): SoundConfig {
   return {
-    v: 2,
     category: "binaural",
     noise: defaultNoiseDesign("white"),
     binaural: defaultBinauralDesign(),
     media: { kind: "youtube", url: "" },
     volume: 0.6,
+  };
+}
+
+/** Pull just the playable sound out of the full settings (the focus sound). */
+export function soundOf(a: AudioSettings): SoundConfig {
+  return {
+    category: a.category,
+    noise: a.noise,
+    binaural: a.binaural,
+    media: a.media,
+    volume: a.volume,
+  };
+}
+
+export function defaultAudioSettings(): AudioSettings {
+  return {
+    v: 2,
+    ...defaultSoundConfig(),
     pauseOnBreak: true,
+    break: null,
   };
 }

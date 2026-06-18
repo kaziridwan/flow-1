@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cornerWeights,
+  binauralBand,
   blendCornerColor,
   interpolateBinaural,
   matchBinauralPreset,
@@ -42,6 +43,22 @@ describe("matchBinauralPreset", () => {
       ],
     };
     expect(matchBinauralPreset(varying)).toBeNull();
+  });
+});
+
+describe("binauralBand", () => {
+  it("classifies beats into brainwave bands", () => {
+    expect(binauralBand(2).name).toBe("Delta");
+    expect(binauralBand(6).name).toBe("Theta");
+    expect(binauralBand(10).name).toBe("Alpha");
+    expect(binauralBand(16).name).toBe("Beta");
+    expect(binauralBand(40).name).toBe("Gamma");
+  });
+  it("treats band edges as the start of the higher band", () => {
+    expect(binauralBand(4).name).toBe("Theta");
+    expect(binauralBand(8).name).toBe("Alpha");
+    expect(binauralBand(14).name).toBe("Beta");
+    expect(binauralBand(30).name).toBe("Gamma");
   });
 });
 

@@ -7,9 +7,10 @@ import {
   NOISE_CORNERS,
   blendCornerColor,
   matchBinauralPreset,
+  soundOf,
 } from "../lib/audioDesign";
 import { isBreak } from "../lib/modes";
-import type { AudioSettings, Block, SessionConfig } from "../types";
+import type { AudioSettings, Block, SessionConfig, SoundConfig } from "../types";
 import { AudioController } from "./AudioController";
 import { Display } from "./Display";
 import { SchedulePreview } from "./SchedulePreview";
@@ -46,22 +47,22 @@ function TButton({
   );
 }
 
-const sourceLabel = (a: AudioSettings): string => {
-  switch (a.category) {
+const sourceLabel = (s: SoundConfig): string => {
+  switch (s.category) {
     case "none":
       return "Silent";
     case "noise": {
-      const c = blendCornerColor(a.noise.blend);
+      const c = blendCornerColor(s.noise.blend);
       return c ? `${NOISE_CORNERS[c].label} noise` : "Custom noise";
     }
     case "binaural": {
-      const p = matchBinauralPreset(a.binaural);
+      const p = matchBinauralPreset(s.binaural);
       return p ? `Binaural · ${BINAURAL_PRESET_SEEDS[p].label}` : "Binaural · Custom";
     }
     case "media":
-      return a.media.kind === "youtube"
+      return s.media.kind === "youtube"
         ? "YouTube"
-        : a.media.kind === "podcast"
+        : s.media.kind === "podcast"
           ? "Podcast"
           : "Media URL";
   }
@@ -106,9 +107,13 @@ export function RunScreen({
   const block = currentBlock;
   const progress = block ? 1 - remaining / block.duration : 0;
   const onBreak = block ? isBreak(block.type) : false;
-  const running = status === "running" && audio.category !== "none";
+  // During a break, play the separate break sound if one is configured and
+  // audio isn't muted; otherwise the focus sound carries through.
+  const useBreakSound = onBreak && !audio.pauseOnBreak && audio.break !== null;
+  const effectiveSound: SoundConfig = useBreakSound ? audio.break! : soundOf(audio);
   const muted = audio.pauseOnBreak && onBreak;
-  const audioActive = running && !muted;
+  const running = status === "running";
+  const audioActive = running && !muted && effectiveSound.category !== "none";
 
   const done = status === "done";
 
@@ -194,7 +199,7 @@ export function RunScreen({
       </section>
 
       {/* now playing */}
-      {audio.category !== "none" && !done && (
+      {effectiveSound.category !== "none" && !done && (
         <section className="neu-flat flex items-center gap-3 px-5 py-4">
           <span
             className={`h-2.5 w-2.5 rounded-full ${audioActive ? "pulsing" : ""}`}
@@ -202,8 +207,10 @@ export function RunScreen({
             aria-hidden
           />
           <div className="flex-1">
-            <span className="tech-label">Now playing</span>
-            <p className="text-sm font-semibold text-ink">{sourceLabel(audio)}</p>
+            <span className="tech-label">
+              {useBreakSound ? "Now playing · break" : "Now playing"}
+            </span>
+            <p className="text-sm font-semibold text-ink">{sourceLabel(effectiveSound)}</p>
           </div>
           <span className="font-mono text-xs font-bold uppercase tracking-[0.15em] text-muted">
             {audioActive ? "On" : onBreak && audio.pauseOnBreak ? "Break" : "Idle"}
@@ -211,7 +218,12 @@ export function RunScreen({
         </section>
       )}
 
-      <AudioController engine={engine} cfg={audio} running={running} muted={muted} />
+      <AudioController
+        engine={engine}
+        sound={effectiveSound}
+        running={running}
+        muted={muted}
+      />
 
       <section className="neu-raised p-5">
         <SchedulePreview blocks={blocks} start={start} activeIndex={index} />

@@ -34,11 +34,11 @@ flow-1/
       ├─ Display.tsx       # the LCD hero (digits, mode color, progress, focus dots)
       ├─ SetupScreen.tsx   # "Patch" mode — all configuration
       ├─ RunScreen.tsx     # "Run" mode — display + transport + now-playing
-      ├─ AudioPicker.tsx   # category cards (Noise/Binaural/Media) + designer sheets (setup)
-      ├─ AudioController.tsx # headless — plays the active category (noise/binaural/YouTube/media)
+      ├─ AudioPicker.tsx   # focus + optional break SoundPicker (each: category cards + designer sheets)
+      ├─ AudioController.tsx # headless — plays one effective SoundConfig (noise/binaural/YouTube/media)
       ├─ NoiseDesigner.tsx # X/Y blend pad + low-pass + volume + live preview (Noise ⋯ sheet)
       ├─ XYPad.tsx         # 2D blend pad (pointer + keyboard, prefers-reduced-motion)
-      ├─ BinauralEngine.tsx # keyframe track editor + sparkline (in the Binaural ⋯ sheet)
+      ├─ BinauralEngine.tsx # keyframe editor + sparkline + scrub preview + frequency guide (Binaural ⋯ sheet)
       ├─ Sheet.tsx         # modal primitive for the sound designers (Esc/backdrop, focus trap)
       └─ SchedulePreview.tsx # timeline list with clock times
 ```
@@ -48,7 +48,7 @@ Test files (`*.test.ts`) are run by Vitest (`pnpm test`, config in `vitest.confi
 ## State model (`App.tsx`)
 
 - `cfg: SessionConfig` — sessions, durations, bell, per-meal enable/duration. Persisted to `localStorage["flow.cfg"]`.
-- `audio: AudioSettings` (v2) — `category` (none/noise/binaural/media) + per-category design (`noise`, `binaural`, `media`), master `volume`, `pauseOnBreak`. Loaded through `migrateAudio()` and persisted to `localStorage["flow.audio"]`.
+- `audio: AudioSettings` (v2) — a `SoundConfig` (the focus sound: `category` none/noise/binaural/media + per-category design + `volume`) plus `pauseOnBreak` and an optional separate `break: SoundConfig | null`. Loaded through `migrateAudio()` and persisted to `localStorage["flow.audio"]`.
 - `committed: { blocks, start } | null` — `null` ⇒ **Patch** mode; set ⇒ **Run** mode. Frozen at Start so edits can't mutate a run. Persisted to `localStorage["flow.run"]` at block boundaries/pause and restored on reload (`src/lib/runStore.ts`; ADR-13).
 - `runId: number` — incremented on Start/Restart; an effect keyed on it calls `timer.start()` after `committed` (and therefore the timer's internal `blocksRef`) has updated.
 - `now: Date` — refreshed every 30 s so the setup preview's meal windows stay honest.
@@ -63,17 +63,18 @@ cfg/audio ──> buildSchedule() ──> Block[] ──┐
                                             ├─> useTimer(blocks) ──> {status,index,remaining,currentBlock}
 Start (runId++) ──> effect ──> timer.start()┘                              │
                                                                            ▼
-                              RunScreen ──> Display (LCD)  +  AudioController (audioActive)
-                                            audioActive = running && category≠none && !(pauseOnBreak && onBreak)
+                              RunScreen ──> Display (LCD)  +  AudioController (effective SoundConfig)
+                                            effectiveSound = (onBreak && !pauseOnBreak && break) ? break : focus
+                                            muted = pauseOnBreak && onBreak
 ```
 
-`AudioController` is a headless/near-headless component: it renders nothing for synthesised sources (drives `AudioEngine` via effects), a hidden `<audio>` for podcast/media, and a visible iframe only for YouTube.
+`AudioController` is a headless/near-headless component fed one **effective** `SoundConfig` (focus, or the break sound on a break): it renders nothing for synthesised sources (drives `AudioEngine` via effects), a hidden `<audio>` for podcast/media, and a visible iframe only for YouTube.
 
 ## Key types (`src/types.ts`)
 
 - `BlockType = "focus" | "short" | "long" | "breakfast" | "lunch" | "dinner"`
 - `Block { type, duration (sec), focusIndex?, label }`
 - `SessionConfig`, `MealConfig`, `BinauralPreset`
-- `AudioSettings` (v2 root) with `AudioCategory`, `NoiseDesign` (+ `NoiseColor`), `BinauralDesign` (+ `BinauralKeyframe`), `MediaKind`
+- `SoundConfig` (category + designs + volume); `AudioSettings` (v2 root) extends it and adds `pauseOnBreak` + `break: SoundConfig | null`. With `AudioCategory`, `NoiseDesign` (+ `NoiseColor`), `BinauralDesign` (+ `BinauralKeyframe`), `MediaKind`
 
 `types.ts` is the single source of truth — extend types there, not inline.

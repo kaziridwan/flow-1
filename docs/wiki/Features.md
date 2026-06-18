@@ -38,12 +38,14 @@ Chosen from **four categories** (default **Binaural / Flow**, volume 60%, "mute 
 |---|---|
 | Silent | nothing |
 | **Noise** | a noise color — White / Pink / Brown / Blue — synthesised live via Web Audio API. ⋯ opens the **Noise Designer**: an X/Y pad blending all four colors, a low-pass filter (cutoff + resonance), a noise volume, and a **Preview** play/stop button that plays the design live as you tweak it. |
-| **Binaural** | two-oscillator stereo beats; presets below. ⋯ opens the **Binaural Engine**: a track length (1 min – **2.5 h**) plus keyframes (time in **HH:MM:SS**, base carrier, beat offset, volume) that glide between values and loop. The first/last keyframe times are **locked** (first at 0, last at the track length — the last follows length changes) and can't be removed. A **Preview** play/stop button plays the track live; a **draggable cursor** over the sparkline scrubs/seeks and the button shows the cursor time. |
+| **Binaural** | two-oscillator stereo beats; presets below. ⋯ opens the **Binaural Engine**: a track length (1 min – **2.5 h**) plus keyframes (time in **HH:MM:SS**, base carrier, beat offset, volume) that glide between values and loop. The first/last keyframe times are **locked** (first at 0, last at the track length — the last follows length changes) and can't be removed. A **Preview** play/stop button plays the track live; a **draggable cursor** over the sparkline scrubs/seeks and the button shows the cursor time. Each keyframe shows its **brainwave band** (Delta/Theta/Alpha/Beta/Gamma) for the beat frequency, and a collapsible **Frequency guide** explains the bands. |
 | **Custom Media** | sub-tabs: **YouTube** (visible IFrame player), **Podcast** (hidden `<audio>`, direct media URL), **Media URL** (hidden `<audio>`). |
 
 **Binaural presets** (`src/lib/audioDesign.ts`): Flow 180 Hz / 10 Hz beat (alpha) · Deep focus 210 Hz / 16 Hz (beta) · Calm 150 Hz / 6 Hz (theta). Needs stereo headphones.
 
-Audio is active when: `status === running && category ≠ none && !(pauseOnBreak && currentBlock is a break)`. It starts on the **Start** press (browsers require a user gesture).
+**Break sound.** Each sound carries its own volume. With **"mute during breaks" off**, a **"Different sound for breaks"** toggle reveals a second full sound picker; that sound plays during breaks (seeded from your focus sound) and the focus sound resumes after. Left off, the focus sound simply continues through breaks (unchanged behavior).
+
+Focus audio is active when: `status === running && category ≠ none && !(pauseOnBreak && currentBlock is a break)`. On a break with a separate break sound configured, that sound plays instead. It starts on the **Start** press (browsers require a user gesture).
 
 
 ## Run mode

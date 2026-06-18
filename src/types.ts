@@ -62,13 +62,21 @@ export interface BinauralDesign {
   keyframes: BinauralKeyframe[];
 }
 
-/** v2 audio configuration: one active category, each with its own design. */
-export interface AudioSettings {
-  v: 2;
+/** A playable background sound: one active category, each with its own design,
+ *  plus its own level. Shared by the focus sound and the optional break sound. */
+export interface SoundConfig {
   category: AudioCategory;
   noise: NoiseDesign;
   binaural: BinauralDesign;
   media: { kind: MediaKind; url: string };
-  volume: number; // master 0..1
+  volume: number; // 0..1
+}
+
+/** v2 audio configuration. The focus sound is held flat on the settings (a
+ *  `SoundConfig`); `break` is an optional separate sound played during breaks
+ *  when `pauseOnBreak` is off (null = keep playing the focus sound). */
+export interface AudioSettings extends SoundConfig {
+  v: 2;
   pauseOnBreak: boolean;
+  break: SoundConfig | null;
 }

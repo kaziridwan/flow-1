@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { AudioEngine } from "../lib/audio";
-import { interpolateBinaural, sortKeyframes } from "../lib/audioDesign";
+import {
+  BINAURAL_BANDS,
+  binauralBand,
+  interpolateBinaural,
+  sortKeyframes,
+} from "../lib/audioDesign";
 import { hms, humanDuration, parseHms } from "../lib/format";
 import type { BinauralDesign, BinauralKeyframe } from "../types";
 import { Eyebrow } from "./controls";
@@ -284,6 +289,7 @@ export function BinauralEngine({
                   onChange={(v) => setKf(i, { beat: clamp(v, BEAT_MIN, BEAT_MAX) })}
                 />
               </div>
+              <BandTag beat={k.beat} />
             </div>
           );
         })}
@@ -300,6 +306,66 @@ export function BinauralEngine({
         The carrier (base) and beat glide between keyframes; the track loops every
         {` ${humanDuration(design.durationSec)}`}. Use stereo headphones.
       </p>
+
+      <FrequencyGuide />
+    </div>
+  );
+}
+
+/** Small chip naming the brainwave band a keyframe's beat falls into, with its
+ *  associated mental state — the per-keyframe half of the Frequency Guide. */
+function BandTag({ beat }: { beat: number }) {
+  const band = binauralBand(beat);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="neu-flat rounded-md px-2 py-0.5 font-mono text-[0.65rem] font-bold uppercase tracking-[0.12em] text-accent">
+        {band.name}
+      </span>
+      <span className="text-xs text-muted">{band.state}</span>
+    </div>
+  );
+}
+
+/** Collapsible reference table of the binaural beat bands. */
+function FrequencyGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="neu-flat px-4 py-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between"
+      >
+        <Eyebrow>Frequency guide</Eyebrow>
+        <span className="font-mono text-[0.65rem] font-bold uppercase tracking-[0.15em] text-muted">
+          {open ? "Hide ▴" : "Show ▾"}
+        </span>
+      </button>
+      {open && (
+        <table className="mt-3 w-full border-collapse text-left">
+          <thead>
+            <tr className="tech-label">
+              <th className="pb-2 pr-2 font-normal">Band</th>
+              <th className="pb-2 pr-2 font-normal">Beat</th>
+              <th className="pb-2 font-normal">Mental state</th>
+            </tr>
+          </thead>
+          <tbody>
+            {BINAURAL_BANDS.map((b) => (
+              <tr key={b.name} className="align-top">
+                <td className="py-1 pr-2 font-mono text-xs font-bold text-accent">
+                  {b.name}
+                </td>
+                <td className="py-1 pr-2 font-mono text-xs text-muted">
+                  {b.min}–{b.max === Infinity ? "100" : b.max} Hz
+                </td>
+                <td className="py-1 text-xs text-muted">{b.state}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
@@ -379,7 +445,10 @@ function TimeField({
         value={locked ? hms(value) : text}
         readOnly={locked}
         disabled={locked}
-        onFocus={() => setEditing(true)}
+        onFocus={(e) => {
+          setEditing(true);
+          e.currentTarget.select();
+        }}
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -389,6 +458,7 @@ function TimeField({
           }
         }}
         aria-label={label}
+        title="Enter as H:MM:SS, MM:SS or seconds"
         className="neu-flat w-full bg-transparent px-2 py-1 font-mono text-sm font-bold text-ink outline-none disabled:opacity-50"
       />
     </label>
