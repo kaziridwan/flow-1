@@ -4,6 +4,11 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-18 · Add GPL-3.0 license
+**What:** Added a `LICENSE` file with the verbatim GNU GPL-3.0 text, set `package.json` `license` to `GPL-3.0-or-later` and `author` to Kazi Ridwan, and added a License section to the README.
+**Why:** The project had no license; chose GPL-3.0 (copyleft) so derivatives stay open.
+**Files:** `LICENSE` (new), `package.json`, `README.md`.
+
 ## 2026-06-18 · Lock background scroll while a modal is open
 **What:** Opening a designer `Sheet` now locks `document.body` scroll (ref-counted, with scrollbar-width padding compensation to avoid a layout shift) and the panel gets `overscroll-contain`. Scrolling over the modal backdrop or panel whitespace no longer scrolls the page behind it.
 **Why:** Scroll chaining — the `fixed inset-0` overlay didn't block wheel/trackpad scroll from reaching the body.

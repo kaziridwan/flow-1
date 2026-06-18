@@ -54,6 +54,12 @@ pnpm run preview  # preview the production build
 
 Default windows: Breakfast 07:00–09:30 · Lunch 12:00–14:30 · Dinner 18:30–21:00. As the schedule is laid out from your start time, a meal is inserted right before the next focus block whenever the clock sits inside an enabled, not-yet-taken window. Adjust each meal's length in the setup panel.
 
+## License
+
+Copyright (C) 2026 Kazi Ridwan.
+
+FLOW-1 is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License** as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed in the hope that it will be useful, but **WITHOUT ANY WARRANTY**; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [`LICENSE`](./LICENSE) file (GPL-3.0) for the full text, or <https://www.gnu.org/licenses/>.
+
 ---
 
 Built as a single-purpose instrument: one bold screen, everything else quiet.
