@@ -22,7 +22,9 @@ flow-1/
    │  ├─ schedule.ts       # buildSchedule(): timeline + meal-break insertion
    │  ├─ schedule.test.ts  # Vitest: break/meal logic
    │  ├─ audio.ts          # AudioEngine class (bell, noise[white/pink/brown/blue], binaural)
-   │  ├─ audioDesign.ts    # pure audio-design helpers: corners, presets, defaults (no Web Audio)
+   │  ├─ audioDesign.ts    # pure audio-design helpers: corners, presets, bands, freq-lock, defaults (no Web Audio)
+   │  ├─ easing.ts         # CSS timing functions: parse/validate + eased progress + cubic-bezier solver
+   │  ├─ presetStore.ts    # user sound presets — localStorage external store + usePresets()
    │  ├─ migrate.ts        # migrateAudio(): legacy/garbage → v2 AudioSettings
    │  ├─ migrate.test.ts   # Vitest: migration mapping + robustness
    │  ├─ modes.ts          # BlockType → color/label map
@@ -38,16 +40,17 @@ flow-1/
       ├─ AudioController.tsx # headless — plays one effective SoundConfig (noise/binaural/YouTube/media)
       ├─ NoiseDesigner.tsx # X/Y blend pad + low-pass + volume + live preview (Noise ⋯ sheet)
       ├─ XYPad.tsx         # 2D blend pad (pointer + keyboard, prefers-reduced-motion)
-      ├─ BinauralEngine.tsx # keyframe editor + sparkline + scrub preview + frequency guide (Binaural ⋯ sheet)
+      ├─ BinauralEngine.tsx # keyframe editor (L/R/Diff + locks, transition curves) + sparkline + scrub preview (Binaural ⋯ sheet)
+      ├─ PresetControls.tsx # save/apply/rename/delete saved presets (designers + main picker)
       ├─ Sheet.tsx         # modal primitive for the sound designers (Esc/backdrop, focus trap)
-      └─ SchedulePreview.tsx # timeline list with clock times
+      └─ SchedulePreview.tsx # timeline list with clock times (+ drag a meal onto a focus to pin it)
 ```
 
 Test files (`*.test.ts`) are run by Vitest (`pnpm test`, config in `vitest.config.ts`) and excluded from the production build (`tsconfig.app.json`).
 
 ## State model (`App.tsx`)
 
-- `cfg: SessionConfig` — sessions, durations, bell, per-meal enable/duration. Persisted to `localStorage["flow.cfg"]`.
+- `cfg: SessionConfig` — sessions, durations, bell, per-meal enable/duration, and `mealSlots` (manual meal placement). Persisted to `localStorage["flow.cfg"]`.
 - `audio: AudioSettings` (v2) — a `SoundConfig` (the focus sound: `category` none/noise/binaural/media + per-category design + `volume`) plus `pauseOnBreak` and an optional separate `break: SoundConfig | null`. Loaded through `migrateAudio()` and persisted to `localStorage["flow.audio"]`.
 - `committed: { blocks, start } | null` — `null` ⇒ **Patch** mode; set ⇒ **Run** mode. Frozen at Start so edits can't mutate a run. Persisted to `localStorage["flow.run"]` at block boundaries/pause and restored on reload (`src/lib/runStore.ts`; ADR-13).
 - `runId: number` — incremented on Start/Restart; an effect keyed on it calls `timer.start()` after `committed` (and therefore the timer's internal `blocksRef`) has updated.
@@ -75,6 +78,6 @@ Start (runId++) ──> effect ──> timer.start()┘                         
 - `BlockType = "focus" | "short" | "long" | "breakfast" | "lunch" | "dinner"`
 - `Block { type, duration (sec), focusIndex?, label }`
 - `SessionConfig`, `MealConfig`, `BinauralPreset`
-- `SoundConfig` (category + designs + volume); `AudioSettings` (v2 root) extends it and adds `pauseOnBreak` + `break: SoundConfig | null`. With `AudioCategory`, `NoiseDesign` (+ `NoiseColor`), `BinauralDesign` (+ `BinauralKeyframe`), `MediaKind`
+- `SoundConfig` (category + designs + volume); `AudioSettings` (v2 root) extends it and adds `pauseOnBreak` + `break: SoundConfig | null`. With `AudioCategory`, `NoiseDesign` (+ `NoiseColor`), `BinauralDesign` (+ `BinauralKeyframe` — `base`/`beat`/`volume` plus optional `transition` timing + `lock`), `FreqLock`, `MediaKind`
 
 `types.ts` is the single source of truth — extend types there, not inline.

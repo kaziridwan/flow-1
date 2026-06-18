@@ -16,6 +16,7 @@ function cfg(over: Partial<SessionConfig> = {}): SessionConfig {
     longMin: 15,
     bell: true,
     meals: noMeals,
+    mealSlots: {},
     ...over,
   };
 }
@@ -93,6 +94,39 @@ describe("buildSchedule meal insertion", () => {
   it("does not insert a meal outside its clock window", () => {
     const blocks = buildSchedule(
       cfg({ sessions: 1, meals: { ...noMeals, lunch: { enabled: true, duration: 45 } } }),
+      morning,
+    );
+    expect(blocks.some((b) => b.type === "lunch")).toBe(false);
+  });
+});
+
+describe("buildSchedule manual meal slots", () => {
+  const enabledLunch = {
+    breakfast: { enabled: false, duration: 30 },
+    lunch: { enabled: true, duration: 45 },
+    dinner: { enabled: false, duration: 45 },
+  };
+
+  it("pins a meal before its chosen focus session, ignoring the clock window", () => {
+    // 10:00 is outside the lunch window, so without a slot it wouldn't appear.
+    const blocks = buildSchedule(
+      cfg({ sessions: 3, meals: enabledLunch, mealSlots: { lunch: 2 } }),
+      morning,
+    );
+    const labels = blocks.map((b) => `${b.type}${b.focusIndex ?? ""}`);
+    expect(labels).toEqual([
+      "focus1",
+      "short",
+      "lunch",
+      "focus2",
+      "short",
+      "focus3",
+    ]);
+  });
+
+  it("does not place a meal whose slot exceeds the session count", () => {
+    const blocks = buildSchedule(
+      cfg({ sessions: 2, meals: enabledLunch, mealSlots: { lunch: 9 } }),
       morning,
     );
     expect(blocks.some((b) => b.type === "lunch")).toBe(false);

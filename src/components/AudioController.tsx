@@ -49,6 +49,10 @@ export function AudioController({
 
   // Media (YouTube / <audio>) can't crossfade — they just play when audible.
   const active = running && !muted;
+  // Read by async callbacks (YouTube onReady) so they act on the *current*
+  // play state rather than the value captured when the player was created.
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   const isYouTube = sound.category === "media" && sound.media.kind === "youtube";
   const isMedia =
@@ -157,11 +161,19 @@ export function AudioController({
       }
       playerRef.current = new window.YT.Player(ytHostRef.current, {
         videoId: vid,
-        playerVars: { autoplay: 0, controls: 1, playsinline: 1, rel: 0 },
+        // autoplay when we mount in a playing state (so the iframe starts as it
+        // loads); onReady then enforces the current state either way.
+        playerVars: {
+          autoplay: activeRef.current ? 1 : 0,
+          controls: 1,
+          playsinline: 1,
+          rel: 0,
+        },
         events: {
           onReady: (e: any) => {
             e.target.setVolume(Math.round(sound.volume * 100));
-            if (active) e.target.playVideo();
+            if (activeRef.current) e.target.playVideo();
+            else e.target.pauseVideo();
           },
         },
       });
@@ -191,7 +203,13 @@ export function AudioController({
         </div>
       )}
       {isMedia && sound.media.url && (
-        <audio ref={audioRef} src={sound.media.url} preload="none" className="hidden" />
+        <audio
+          ref={audioRef}
+          src={sound.media.url}
+          preload="auto"
+          playsInline
+          className="hidden"
+        />
       )}
     </div>
   );

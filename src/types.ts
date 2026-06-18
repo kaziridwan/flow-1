@@ -30,6 +30,10 @@ export interface SessionConfig {
   longMin: number;
   bell: boolean;
   meals: Record<MealKey, MealConfig>;
+  /** Manual placement override: a meal pinned here is inserted right before the
+   *  given focus-session index (1-based), ignoring its clock window. Meals not
+   *  listed fall back to window-based placement. Set by dragging in the preview. */
+  mealSlots: Partial<Record<MealKey, number>>;
 }
 
 export type BinauralPreset = "flow" | "focus" | "calm";
@@ -48,11 +52,19 @@ export interface NoiseDesign {
   volume: number; // 0..1
 }
 
+/** Which of left/right/diff is held constant when another is edited. */
+export type FreqLock = "left" | "right" | "diff";
+
 export interface BinauralKeyframe {
   t: number; // seconds from track start
-  base: number; // carrier frequency, Hz
-  beat: number; // L/R frequency difference, Hz
+  base: number; // left carrier frequency, Hz
+  beat: number; // diff = right − left, Hz (right ear = base + beat)
   volume: number; // 0..1
+  /** Timing function for the glide to the next keyframe (CSS-style). Default
+   *  "linear"; a keyword or a `cubic-bezier(...)` string. Ignored on the last. */
+  transition?: string;
+  /** Editing lock for the left/right/diff trio (see FreqLock). */
+  lock?: FreqLock;
 }
 
 /** A binaural track of a fixed length whose parameters interpolate between

@@ -20,6 +20,7 @@ const DEFAULT_CFG: SessionConfig = {
     lunch: { enabled: true, duration: 45 },
     dinner: { enabled: false, duration: 45 },
   },
+  mealSlots: {},
 };
 
 function load<T>(key: string, fallback: T): T {

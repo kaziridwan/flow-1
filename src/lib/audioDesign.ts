@@ -1,7 +1,9 @@
+import { easeProgress } from "./easing";
 import type {
   AudioSettings,
   BinauralDesign,
   BinauralPreset,
+  FreqLock,
   NoiseColor,
   NoiseDesign,
   SoundConfig,
@@ -81,15 +83,17 @@ export interface BinauralBand {
   name: string;
   min: number;
   max: number;
+  /** Representative beat (Hz) applied when the band is picked from the dropdown. */
+  beat: number;
   state: string;
 }
 
 export const BINAURAL_BANDS: BinauralBand[] = [
-  { name: "Delta", min: 0, max: 4, state: "Deep sleep, healing & deep relaxation" },
-  { name: "Theta", min: 4, max: 8, state: "Meditation, light sleep & creativity" },
-  { name: "Alpha", min: 8, max: 14, state: "Relaxation, calm & reflective focus" },
-  { name: "Beta", min: 14, max: 30, state: "Alertness, active thinking & concentration" },
-  { name: "Gamma", min: 30, max: Infinity, state: "Flow state & heightened focus" },
+  { name: "Delta", min: 0, max: 4, beat: 1, state: "Deep sleep, healing & deep relaxation" },
+  { name: "Theta", min: 4, max: 8, beat: 5, state: "Meditation, light sleep & creativity" },
+  { name: "Alpha", min: 8, max: 14, beat: 10, state: "Relaxation, calm & reflective focus" },
+  { name: "Beta", min: 14, max: 30, beat: 20, state: "Alertness, active thinking & concentration" },
+  { name: "Gamma", min: 30, max: Infinity, beat: 40, state: "Flow state & heightened focus" },
 ];
 
 /** Classify a beat frequency (Hz) into its brainwave band. */
@@ -122,7 +126,9 @@ export function interpolateBinaural(
     const a = kfs[i];
     const b = kfs[i + 1];
     if (t >= a.t && t <= b.t) {
-      const f = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t);
+      const raw = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t);
+      // The glide from a→b follows a's transition timing function.
+      const f = easeProgress(a.transition, raw);
       return {
         base: lerp(a.base, b.base, f),
         beat: lerp(a.beat, b.beat, f),
@@ -136,6 +142,38 @@ export function interpolateBinaural(
 /** Keep keyframes sorted by time — the engine's scheduler assumes this. */
 export function sortKeyframes<T extends { t: number }>(kfs: T[]): T[] {
   return [...kfs].sort((a, b) => a.t - b.t);
+}
+
+/**
+ * Resolve an edit to one of a keyframe's left/right/diff values (where
+ * right = left + diff). The edited field takes `value`; an anchor field is
+ * held — the `lock` if it isn't the edited field, otherwise the highest of the
+ * remaining two by the Left > Right > Diff precedence — and the third
+ * recomputes. Returns the new {left, diff} (un-clamped).
+ */
+export function resolveFreqEdit(
+  left: number,
+  diff: number,
+  lock: FreqLock | undefined,
+  field: FreqLock,
+  value: number,
+): { left: number; diff: number } {
+  let L = left;
+  let D = diff;
+  let R = left + diff;
+  if (field === "left") L = value;
+  else if (field === "right") R = value;
+  else D = value;
+  const others = (["left", "right", "diff"] as FreqLock[]).filter(
+    (f) => f !== field,
+  );
+  const anchor =
+    lock && lock !== field && others.includes(lock) ? lock : others[0];
+  const third = others.find((f) => f !== anchor)!;
+  if (third === "left") L = R - D;
+  else if (third === "right") R = L + D;
+  else D = R - L;
+  return { left: L, diff: D };
 }
 
 export const DEFAULT_LOWPASS = { enabled: false, cutoff: 1200, q: 0.7 };
@@ -185,6 +223,49 @@ export function soundOf(a: AudioSettings): SoundConfig {
     volume: a.volume,
   };
 }
+
+/** Built-in keyframed binaural tracks, offered (apply-only) alongside the
+ *  user's saved presets in the Binaural Engine. Volume defaults to 0.8. */
+export const BUILTIN_BINAURAL_PRESETS: { name: string; design: BinauralDesign }[] = [
+  {
+    name: "20 Minute Power Nap",
+    design: {
+      durationSec: 20 * 60,
+      keyframes: [
+        { t: 0, base: 100, beat: 13.7, volume: 0.8, transition: "ease-out" },
+        { t: 180, base: 98.3, beat: 6.7, volume: 0.8 },
+        {
+          t: 1080,
+          base: 90,
+          beat: 7.4,
+          volume: 0.8,
+          transition: "cubic-bezier(0.73, 0.02, 0.31, 0.97)",
+        },
+        { t: 1200, base: 100, beat: 14, volume: 0.8 },
+      ],
+    },
+  },
+  {
+    name: "25 Minute Study",
+    design: {
+      durationSec: 25 * 60,
+      keyframes: [
+        { t: 0, base: 159, beat: 14, volume: 0.8, transition: "ease-out" },
+        { t: 200, base: 140, beat: 10, volume: 0.8 },
+        { t: 300, base: 140, beat: 10, volume: 0.8 },
+        { t: 360, base: 150, beat: 11, volume: 0.8 },
+        { t: 600, base: 150, beat: 11, volume: 0.8 },
+        { t: 660, base: 140, beat: 10, volume: 0.8 },
+        { t: 900, base: 140, beat: 10, volume: 0.8 },
+        { t: 960, base: 150, beat: 11, volume: 0.8 },
+        { t: 1200, base: 150, beat: 11, volume: 0.8 },
+        { t: 1260, base: 140, beat: 10, volume: 0.8 },
+        { t: 1380, base: 140, beat: 10, volume: 0.8, transition: "ease-in" },
+        { t: 1500, base: 159, beat: 14, volume: 0.8 },
+      ],
+    },
+  },
+];
 
 export function defaultAudioSettings(): AudioSettings {
   return {

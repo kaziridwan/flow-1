@@ -7,7 +7,7 @@ export const MEAL_WINDOWS: Record<MealKey, { start: number; end: number; label: 
   dinner: { start: 18 * 60 + 30, end: 21 * 60, label: "Dinner" },
 };
 
-const MEAL_ORDER: MealKey[] = ["breakfast", "lunch", "dinner"];
+export const MEAL_ORDER: MealKey[] = ["breakfast", "lunch", "dinner"];
 
 /** A long break replaces a short break after every 4th focus session,
  *  but only when the plan has 5 or more sessions. */
@@ -36,19 +36,33 @@ export function buildSchedule(cfg: SessionConfig, start: Date = new Date()): Blo
     dinner: false,
   };
   const longBreaks = usesLongBreaks(cfg.sessions);
+  const slots = cfg.mealSlots ?? {};
 
   const advance = (minutes: number) =>
     cursor.setMinutes(cursor.getMinutes() + minutes);
 
   for (let i = 1; i <= cfg.sessions; i++) {
-    // Offer any meal whose window currently contains the cursor.
+    // Insert meals before this focus block: a manually-pinned meal lands at its
+    // chosen session (ignoring its window); otherwise a meal lands if the cursor
+    // is currently inside its clock window.
     for (const meal of MEAL_ORDER) {
       const m = cfg.meals[meal];
       if (!m.enabled || taken[meal]) continue;
-      const w = MEAL_WINDOWS[meal];
-      const now = minutesOfDay(cursor);
-      if (now >= w.start && now < w.end) {
-        blocks.push({ type: meal, duration: m.duration * 60, label: w.label });
+      const slot = slots[meal];
+      const place =
+        slot != null
+          ? slot === i
+          : (() => {
+              const w = MEAL_WINDOWS[meal];
+              const now = minutesOfDay(cursor);
+              return now >= w.start && now < w.end;
+            })();
+      if (place) {
+        blocks.push({
+          type: meal,
+          duration: m.duration * 60,
+          label: MEAL_WINDOWS[meal].label,
+        });
         taken[meal] = true;
         advance(m.duration);
       }

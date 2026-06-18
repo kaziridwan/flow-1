@@ -28,6 +28,8 @@ Each meal can be toggled and given a duration. A meal is inserted into the timel
 
 Meal duration adjustable 10–90 min (step 5). Windows are fixed in `MEAL_WINDOWS` (`src/lib/schedule.ts`).
 
+**Manual placement.** In the **Preview** timeline you can **drag a meal onto a focus block** to pin it right before that focus session, overriding its clock window (`SessionConfig.mealSlots`). Pinned meals show a `pinned ✕` badge — click it to revert to window-based placement. Meals without a pin stay window-driven. (Native drag-and-drop, so desktop only for now.)
+
 Setup section order is **01 Session · 02 Sound · 03 Meal breaks · 04 Preview**. The **Meal breaks** and **Preview** (timeline / clock times / projected end) cards are collapsible and **collapsed by default** — tap the header to expand.
 
 ## Background sound
@@ -38,10 +40,12 @@ Chosen from **four categories** (default **Binaural / Flow**, volume 60%, "mute 
 |---|---|
 | Silent | nothing |
 | **Noise** | a noise color — White / Pink / Brown / Blue — synthesised live via Web Audio API. ⋯ opens the **Noise Designer**: an X/Y pad blending all four colors, a low-pass filter (cutoff + resonance), a noise volume, and a **Preview** play/stop button that plays the design live as you tweak it. |
-| **Binaural** | two-oscillator stereo beats; presets below. ⋯ opens the **Binaural Engine**: a track length (1 min – **2.5 h**) plus keyframes (time in **HH:MM:SS**, base carrier, beat offset, volume) that glide between values and loop. The first/last keyframe times are **locked** (first at 0, last at the track length — the last follows length changes) and can't be removed. A **Preview** play/stop button plays the track live; a **draggable cursor** over the sparkline scrubs/seeks and the button shows the cursor time. Each keyframe shows its **brainwave band** (Delta/Theta/Alpha/Beta/Gamma) for the beat frequency, and a collapsible **Frequency guide** explains the bands. |
+| **Binaural** | two-oscillator stereo beats; presets below. ⋯ opens the **Binaural Engine**: a track length (1 min – **2.5 h**) plus keyframes (time in **HH:MM:SS**, base carrier, beat offset, volume) that glide between values and loop. The first/last keyframe times are **locked** (first at 0, last at the track length — the last follows length changes) and can't be removed. A **Preview** play/stop button plays the track live; a **draggable cursor** over the sparkline scrubs/seeks and the button shows the cursor time. Each keyframe shows **Left / Right / Diff Hz** (right = left + diff), all editable — by default Left>Right>Diff precedence decides what recomputes, and a **lock** on any one holds it constant while you edit the others. A **Band dropdown** (Delta/Theta/Alpha/Beta/Gamma) snaps the diff to a representative beat (1/5/10/20/40 Hz); a collapsible **Frequency guide** explains the bands. Every keyframe (except the last) has a **Transition** timing function for the glide to the next — `linear` (default) / `ease` / `ease-in` / `ease-out` / `step-start` / `step-end`, or a custom validated `cubic-bezier(x1,y1,x2,y2)` — shown with a small curve preview. **Built-in presets** "20 Minute Power Nap" and "25 Minute Study" can be applied from the engine alongside your saved ones. |
 | **Custom Media** | sub-tabs: **YouTube** (visible IFrame player), **Podcast** (hidden `<audio>`, direct media URL), **Media URL** (hidden `<audio>`). |
 
 **Binaural presets** (`src/lib/audioDesign.ts`): Flow 180 Hz / 10 Hz beat (alpha) · Deep focus 210 Hz / 16 Hz (beta) · Calm 150 Hz / 6 Hz (theta). Needs stereo headphones.
+
+**Saved presets.** For Noise and Binaural you can **save the current design under a name**, then apply / rename / delete it — from inside the designer ⋯ sheet (Noise Designer / Binaural Engine). The save form is hidden until you tap **"(select or create)"** next to the "Saved presets" title; saved chips are always shown. Presets persist in the browser (`localStorage["flow.presets"]`).
 
 **Break sound.** Each sound carries its own volume. With **"mute during breaks" off**, a **"Different sound for breaks"** toggle reveals a second full sound picker; that sound plays during breaks (seeded from your focus sound) and the focus sound resumes after. Left off, the focus sound simply continues through breaks (unchanged behavior).
 

@@ -208,7 +208,17 @@ export function SetupScreen({
         </button>
         {previewOpen && (
           <div className="mt-3">
-            <SchedulePreview blocks={blocks} start={start} />
+            <SchedulePreview
+              blocks={blocks}
+              start={start}
+              mealSlots={cfg.mealSlots}
+              onPinMeal={(meal, focusIndex) => {
+                const next = { ...cfg.mealSlots };
+                if (focusIndex == null) delete next[meal];
+                else next[meal] = focusIndex;
+                set({ mealSlots: next });
+              }}
+            />
           </div>
         )}
       </section>

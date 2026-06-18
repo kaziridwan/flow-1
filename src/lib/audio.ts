@@ -1,4 +1,5 @@
 import { NOISE_COLORS, cornerWeights, interpolateBinaural } from "./audioDesign";
+import { easeProgress, isStepTiming } from "./easing";
 import type { BinauralDesign, NoiseColor, NoiseDesign } from "../types";
 
 type NoiseKind = NoiseColor;
@@ -241,12 +242,16 @@ export class AudioEngine {
   }
 
   /** Lay keyframe automation onto the oscillators/gain from `currentTime`,
-   *  starting `offset` seconds into the track (the value at the offset is set
-   *  immediately, then later keyframes ramp from there). */
+   *  starting `offset` seconds into the track. Each segment follows its
+   *  keyframe's transition timing: continuous easings are sampled into short
+   *  linear ramps; stepped timings are scheduled as jumps. The value at the
+   *  offset is set immediately so seeking/looping never clicks. */
   private scheduleBinaural(design: BinauralDesign, offset = 0) {
     if (!this.binaural || !this.ctx) return;
     const { left, right, gain } = this.binaural;
     const t0 = this.ctx.currentTime;
+    const g = (v: number) => Math.max(0.0001, v * BINAURAL_LEVEL);
+    const SAMPLES = 24; // sub-steps per eased segment
 
     for (const p of [left.frequency, right.frequency, gain.gain]) {
       p.cancelScheduledValues(t0);
@@ -254,14 +259,48 @@ export class AudioEngine {
     const start = interpolateBinaural(design, offset);
     left.frequency.setValueAtTime(start.base, t0);
     right.frequency.setValueAtTime(start.base + start.beat, t0);
-    gain.gain.setValueAtTime(Math.max(0.0001, start.volume * BINAURAL_LEVEL), t0);
+    gain.gain.setValueAtTime(g(start.volume), t0);
 
-    for (const k of design.keyframes) {
-      if (k.t <= offset) continue;
-      const at = t0 + (k.t - offset);
-      left.frequency.linearRampToValueAtTime(k.base, at);
-      right.frequency.linearRampToValueAtTime(k.base + k.beat, at);
-      gain.gain.linearRampToValueAtTime(Math.max(0.0001, k.volume * BINAURAL_LEVEL), at);
+    const kfs = design.keyframes;
+    const at = (localT: number) => Math.max(t0, t0 + (localT - offset));
+    const ramp = (base: number, beat: number, vol: number, localT: number) => {
+      if (localT <= offset) return;
+      left.frequency.linearRampToValueAtTime(base, at(localT));
+      right.frequency.linearRampToValueAtTime(base + beat, at(localT));
+      gain.gain.linearRampToValueAtTime(g(vol), at(localT));
+    };
+    const jump = (base: number, beat: number, vol: number, localT: number) => {
+      if (localT < offset) return;
+      left.frequency.setValueAtTime(base, at(localT));
+      right.frequency.setValueAtTime(base + beat, at(localT));
+      gain.gain.setValueAtTime(g(vol), at(localT));
+    };
+
+    for (let i = 0; i < kfs.length - 1; i++) {
+      const a = kfs[i];
+      const b = kfs[i + 1];
+      if (b.t <= offset) continue;
+      const segDur = b.t - a.t;
+      const step = isStepTiming(a.transition);
+      if (step === "start") {
+        jump(b.base, b.beat, b.volume, a.t); // jump to b at the segment start
+      } else if (step === "end") {
+        jump(b.base, b.beat, b.volume, b.t); // hold a, then jump to b at the end
+      } else if (segDur <= 0) {
+        jump(b.base, b.beat, b.volume, b.t);
+      } else {
+        for (let s = 1; s <= SAMPLES; s++) {
+          const p = s / SAMPLES;
+          const localT = a.t + p * segDur;
+          const e = easeProgress(a.transition, p);
+          ramp(
+            a.base + (b.base - a.base) * e,
+            a.beat + (b.beat - a.beat) * e,
+            a.volume + (b.volume - a.volume) * e,
+            localT,
+          );
+        }
+      }
     }
   }
 

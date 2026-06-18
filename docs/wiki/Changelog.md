@@ -4,6 +4,31 @@ Append-only, newest first. **Every session adds an entry** (see the Documentatio
 
 ---
 
+## 2026-06-18 · v0.4.0: binaural timing functions, value locking, built-in presets
+**What:** (1) **Timing functions** — each keyframe carries a CSS-style `transition` (linear/ease/ease-in/ease-out/step-start/step-end or a validated `cubic-bezier(...)`) governing the glide to the next keyframe; default linear. New `src/lib/easing.ts` (parse/validate + eased progress + cubic-bezier solver + curve sampling). The engine samples eased segments into short ramps (steps → jumps), `interpolateBinaural` and the sparkline are ease-aware, and the editor shows a per-keyframe dropdown + custom bezier input + curve preview. (2) **Value locking** — keyframes expose **Left / Right / Diff** (right = left + diff), all editable; the Left>Right>Diff precedence decides what recomputes, and locking a field holds it (`resolveFreqEdit`, unit-tested). (3) **Built-in presets** — "20 Minute Power Nap" and "25 Minute Study" keyframed tracks, applied (apply-only) from the Binaural Engine. Version bumped to 0.4.0.
+**Why:** v0.4.0 — richer, more musical binaural design (eased glides, precise ear/offset control, ready-made tracks).
+**Files:** `src/lib/easing.ts` (+test, new), `src/lib/audio.ts`, `src/lib/audioDesign.ts` (+test), `src/components/{BinauralEngine,PresetControls}.tsx`, `src/types.ts`, `package.json`.
+
+## 2026-06-18 · Reliable media autoplay when the run is playing
+**What:** YouTube / podcast / media-URL sources now start automatically when the session is in the play state. YouTube creates with `autoplay` matching the mount-time play state and `onReady` enforces play/pause via a live `activeRef` (no longer reads a stale `active` from the player-creation closure); the `<audio>` element switched to `preload="auto"` + `playsInline`.
+**Why:** v0.3 — media should begin with the session, not require a manual press; the IFrame API loads after the Start gesture, so `onReady` must act on the current state.
+**Files:** `src/components/AudioController.tsx`.
+
+## 2026-06-18 · Hide preset save form behind a "(select or create)" toggle
+**What:** In `PresetControls` the name input + Save button are hidden by default; a "(select or create)" link beside the "Saved presets" title reveals them (toggles to "(close)"). Saved-preset chips stay visible. Applies to both the Noise Designer and Binaural Engine sheets (shared component).
+**Why:** Keep the designer sheets uncluttered — saving is opt-in, applying an existing preset stays one tap.
+**Files:** `src/components/PresetControls.tsx`.
+
+## 2026-06-18 · Saved sound presets + manual meal placement
+**What:** (1) **User presets** — save the current binaural track or noise design under a name, then apply/rename/delete it from inside the designer ⋯ sheet. New `presetStore` (a `localStorage`-backed external store via `useSyncExternalStore`) + shared `PresetControls` component. (2) **Manual meal placement** — `SessionConfig.mealSlots` pins a meal before a chosen focus session (overriding its clock window); drag a meal onto a focus block in the preview timeline to pin it, click the `pinned ✕` badge to revert to window placement. Unpinned meals stay window-driven.
+**Why:** 0.2 follow-ups — quick reuse of favorite sounds across sessions, and real control over where meals land.
+**Files:** `src/lib/presetStore.ts` (new), `src/components/PresetControls.tsx` (new), `src/components/{NoiseDesigner,BinauralEngine,SchedulePreview,SetupScreen}.tsx`, `src/lib/schedule.ts`, `src/lib/schedule.test.ts`, `src/types.ts`, `src/App.tsx`.
+
+## 2026-06-18 · Binaural keyframe: left/right wave fields + band dropdown
+**What:** Renamed the keyframe carrier field **Base → Left Hz** and added a read-only **Right Hz** (= left + beat, updates with either). The per-keyframe band chip is now a **Band dropdown** (Delta/Theta/Alpha/Beta/Gamma); picking one snaps the beat to that band's representative frequency (1/5/10/20/40 Hz). Added a `beat` value to each `BINAURAL_BANDS` entry.
+**Why:** 0.2 follow-up — make both ears' frequencies visible and let users dial a target brain state without knowing the exact beat Hz.
+**Files:** `src/lib/audioDesign.ts`, `src/components/BinauralEngine.tsx`.
+
 ## 2026-06-18 · Binaural keyframe list: auto-scroll on add + zebra striping
 **What:** Adding a keyframe now smooth-scrolls the ⋯ sheet down to the Frequency guide (bringing the full keyframe list + controls into view), and alternate keyframe cards get a slightly darker gradient to make adjacent keyframes easy to tell apart.
 **Why:** Quality-of-life on the Binaural Engine editor — less manual scrolling, clearer row separation.

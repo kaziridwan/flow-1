@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AudioEngine } from "../lib/audio";
 import type { NoiseDesign } from "../types";
 import { Eyebrow, Toggle } from "./controls";
+import { PresetControls } from "./PresetControls";
 import { XYPad } from "./XYPad";
 
 /**
@@ -80,6 +81,8 @@ export function NoiseDesigner({
           />
         )}
       </button>
+
+      <PresetControls kind="noise" current={design} onApply={onChange} />
 
       <div>
         <div className="mb-2">

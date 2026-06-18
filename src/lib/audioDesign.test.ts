@@ -6,6 +6,7 @@ import {
   interpolateBinaural,
   matchBinauralPreset,
   defaultBinauralDesign,
+  resolveFreqEdit,
   NOISE_CORNERS,
 } from "./audioDesign";
 
@@ -79,5 +80,49 @@ describe("interpolateBinaural", () => {
     expect(mid.base).toBeCloseTo(150);
     expect(mid.beat).toBeCloseTo(9);
     expect(mid.volume).toBeCloseTo(0.6);
+  });
+  it("applies the segment's easing (ease-in lags linear at the midpoint)", () => {
+    const eased = {
+      durationSec: 100,
+      keyframes: [
+        { t: 0, base: 100, beat: 4, volume: 0.2, transition: "ease-in" },
+        { t: 100, base: 200, beat: 14, volume: 1 },
+      ],
+    };
+    expect(interpolateBinaural(eased, 50).base).toBeLessThan(150);
+  });
+});
+
+describe("resolveFreqEdit", () => {
+  // Start: left=100, diff=10 (right=110).
+  it("default precedence: editing left holds right, diff recomputes", () => {
+    expect(resolveFreqEdit(100, 10, undefined, "left", 90)).toEqual({
+      left: 90,
+      diff: 20,
+    });
+  });
+  it("default: editing right holds left, diff recomputes", () => {
+    expect(resolveFreqEdit(100, 10, undefined, "right", 120)).toEqual({
+      left: 100,
+      diff: 20,
+    });
+  });
+  it("diff locked: editing right updates left", () => {
+    expect(resolveFreqEdit(100, 10, "diff", "right", 120)).toEqual({
+      left: 110,
+      diff: 10,
+    });
+  });
+  it("left locked: editing diff updates right (left held)", () => {
+    expect(resolveFreqEdit(100, 10, "left", "diff", 25)).toEqual({
+      left: 100,
+      diff: 25,
+    });
+  });
+  it("right locked: editing diff updates left", () => {
+    expect(resolveFreqEdit(100, 10, "right", "diff", 4)).toEqual({
+      left: 106,
+      diff: 4,
+    });
   });
 });
